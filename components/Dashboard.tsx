@@ -1,0 +1,193 @@
+
+import React from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { UserProfile, InterviewResult } from '../types';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LineChart, Line } from 'recharts';
+
+const Dashboard: React.FC<{ user: UserProfile }> = ({ user }) => {
+  const navigate = useNavigate();
+  
+  // Transform history for the chart
+  const historyData = [...user.history].reverse().map((h, i) => ({
+    name: `Session ${i + 1}`,
+    score: h.score,
+    date: new Date(h.date).toLocaleDateString()
+  }));
+
+  const lastSession = user.history[0];
+
+  const resumePrep = () => {
+    if (user.lastSessionState) {
+      sessionStorage.setItem('current_interview', JSON.stringify(user.lastSessionState));
+      navigate('/interview');
+    }
+  };
+
+  return (
+    <div className="space-y-8 animate-fade-in">
+      {/* Professional Hero Section */}
+      <div className="bg-emerald-600 rounded-3xl p-8 md:p-12 text-white relative overflow-hidden shadow-2xl">
+        <div className="absolute inset-0 pattern-overlay"></div>
+        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 blur-[80px] rounded-full translate-x-1/2 -translate-y-1/2"></div>
+        
+        <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
+          <div className="max-w-xl text-center md:text-left">
+            <h1 className="text-4xl md:text-5xl font-extrabold mb-4 leading-tight">
+              Welcome back, {user.name.split(' ')[0]}!
+            </h1>
+            <p className="text-emerald-100 text-lg mb-8 opacity-90">
+              {user.history.length > 0 
+                ? `Your last score was ${lastSession.score}%. You're accelerating towards a world-class ${lastSession.role} position!`
+                : "Ready to dominate the global job market? Let's start with an international-standard mock interview."}
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
+              <Link 
+                to="/prepare" 
+                className="inline-flex items-center justify-center space-x-2 bg-white text-emerald-600 px-8 py-4 rounded-xl font-bold hover:bg-emerald-50 transition-all transform hover:scale-105 shadow-xl"
+              >
+                <span>New Prep Session</span>
+                <i className="fas fa-plus text-sm"></i>
+              </Link>
+              {user.lastSessionState && (
+                <button 
+                  onClick={resumePrep}
+                  className="inline-flex items-center justify-center space-x-2 bg-emerald-700 text-white px-8 py-4 rounded-xl font-bold hover:bg-emerald-800 transition-all border border-emerald-500/30"
+                >
+                  <span>Resume Studio Session</span>
+                  <i className="fas fa-redo text-sm"></i>
+                </button>
+              )}
+            </div>
+          </div>
+          
+          <div className="flex-shrink-0 bg-emerald-700/50 backdrop-blur-md p-6 rounded-2xl border border-white/20 min-w-[240px]">
+             <div className="text-center mb-4">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-200">Global Proficiency Score</p>
+                <p className="text-5xl font-black text-white">
+                  {user.history.length > 0 
+                    ? Math.round(user.history.reduce((acc, h) => acc + h.score, 0) / user.history.length)
+                    : 0
+                  }<span className="text-xl">%</span>
+                </p>
+             </div>
+             <div className="flex gap-4">
+                <div className="text-center px-4 border-r border-white/10 flex-1">
+                   <p className="text-[9px] font-bold text-emerald-200 uppercase">Sessions</p>
+                   <p className="text-xl font-bold">{user.interviewsCompleted}</p>
+                </div>
+                <div className="text-center px-4 flex-1">
+                   <p className="text-[9px] font-bold text-emerald-200 uppercase">Status</p>
+                   <p className="text-xl font-bold">Top Tier</p>
+                </div>
+             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Progress Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2 bg-slate-900/50 p-8 rounded-2xl border border-slate-800/50">
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h2 className="text-xl font-bold text-slate-100">Global Performance Tracker</h2>
+              <p className="text-xs text-slate-500 mt-1">Your professional trend across international sessions.</p>
+            </div>
+            <div className="flex items-center space-x-4">
+               <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 bg-emerald-500 rounded-full"></div>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase">Industry Score</span>
+               </div>
+            </div>
+          </div>
+          
+          <div className="h-72">
+            {user.history.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={historyData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 10}} />
+                  <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 10}} domain={[0, 100]} />
+                  <Tooltip 
+                    contentStyle={{borderRadius: '16px', border: '1px solid #1e293b', backgroundColor: '#020617', color: '#fff'}}
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="score" 
+                    stroke="#10b981" 
+                    strokeWidth={3} 
+                    dot={{fill: '#10b981', r: 5}} 
+                    activeDot={{r: 8, stroke: '#fff', strokeWidth: 2}}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-50">
+                <i className="fas fa-chart-line text-4xl text-slate-700"></i>
+                <p className="text-sm text-slate-500">Global insights pending. Complete your first session to unlock!</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="bg-slate-900/50 p-8 rounded-2xl border border-slate-800/50 flex flex-col">
+          <h2 className="text-xl font-bold mb-6 text-slate-100">Recent Sessions</h2>
+          <div className="space-y-4 flex-grow overflow-y-auto max-h-[300px] pr-2">
+            {user.history.length > 0 ? (
+              user.history.map((h) => (
+                <div key={h.id} className="p-4 bg-slate-950 rounded-xl border border-slate-800 hover:border-emerald-500/40 transition-all">
+                  <div className="flex justify-between items-start mb-1">
+                    <p className="font-bold text-xs text-slate-200">{h.role}</p>
+                    <span className="text-[10px] font-black text-emerald-500">{h.score}%</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <p className="text-[10px] text-slate-500">{new Date(h.date).toLocaleDateString()}</p>
+                    <Link to="/interview" className="text-[9px] text-emerald-400 font-bold hover:underline">View Transcript</Link>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-8 opacity-40">
+                <p className="text-xs">No records found.</p>
+              </div>
+            )}
+          </div>
+          <Link to="/prepare" className="w-full mt-6 py-3 bg-slate-800 text-white text-center text-xs font-bold rounded-xl hover:bg-slate-700 transition-colors">
+            Start New Prep
+          </Link>
+        </div>
+      </div>
+
+      {/* Global Recommendations */}
+      {user.history.length > 0 && (
+        <div className="bg-slate-900/50 p-8 rounded-2xl border border-slate-800/50">
+          <h2 className="text-xl font-bold mb-6 text-slate-100">Global Industry Insights</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="p-5 bg-blue-900/10 border border-blue-500/20 rounded-2xl">
+              <div className="w-10 h-10 bg-blue-500/20 text-blue-400 rounded-lg flex items-center justify-center mb-4">
+                <i className="fas fa-graduation-cap"></i>
+              </div>
+              <h4 className="font-bold text-sm mb-2 text-blue-100">Market Standard</h4>
+              <p className="text-xs text-slate-400 leading-relaxed">Your technical answers are strong, but aligning more with international design patterns could boost global scores.</p>
+            </div>
+            <div className="p-5 bg-purple-900/10 border border-purple-500/20 rounded-2xl">
+              <div className="w-10 h-10 bg-purple-500/20 text-purple-400 rounded-lg flex items-center justify-center mb-4">
+                <i className="fas fa-comments"></i>
+              </div>
+              <h4 className="font-bold text-sm mb-2 text-purple-100">Communication</h4>
+              <p className="text-xs text-slate-400 leading-relaxed">Maintain the STAR method rigorously for all behavioral rounds as per standard Fortune 500 expectations.</p>
+            </div>
+            <div className="p-5 bg-amber-900/10 border border-amber-500/20 rounded-2xl">
+              <div className="w-10 h-10 bg-amber-500/20 text-amber-400 rounded-lg flex items-center justify-center mb-4">
+                <i className="fas fa-globe"></i>
+              </div>
+              <h4 className="font-bold text-sm mb-2 text-amber-100">Cross-Culture Fit</h4>
+              <p className="text-xs text-slate-400 leading-relaxed">Your experience with diverse teams is a huge asset. Highlight this for high-growth international roles.</p>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default Dashboard;

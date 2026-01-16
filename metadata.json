@@ -1,0 +1,7 @@
+{
+  "name": "HirePrep",
+  "description": "An AI-powered interview preparation platform tailored for Africa and the international job market, featuring CV analysis, custom mock interviews, and detailed performance feedback.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
