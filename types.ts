@@ -37,11 +37,16 @@ export interface InterviewState {
   isRandomized: boolean;
 }
 
+export interface Suggestion {
+  text: string;
+  rationale: string;
+}
+
 export interface FeedbackData {
   score: number;
   strengths: string[];
   weaknesses: string[];
-  suggestions: string[];
+  suggestions: Suggestion[];
   technicalAccuracy: number;
   communicationSkills: number;
   confidence: number;

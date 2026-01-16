@@ -40,7 +40,7 @@ export const generateNextQuestion = async (
     : "Ask straightforward introductory, interest, and core skills-based questions.";
 
   const randomizationPrompt = state.isRandomized 
-    ? "Vary the topics unexpectedly to test real-world adaptability across different areas of the ${state.industry} domain." 
+    ? `Vary the topics unexpectedly to test real-world adaptability across different areas of the ${state.industry} domain.` 
     : "Follow a logical progression through technical skills, domain expertise, and then behavioral/cultural fit.";
 
   const prompt = isFirst 
@@ -91,7 +91,9 @@ export const generateDetailedFeedback = async (
     "score": number (0-100),
     "strengths": string[],
     "weaknesses": string[],
-    "suggestions": string[],
+    "suggestions": [
+      { "text": "Actionable advice", "rationale": "Brief explanation of why this matters for this role/industry" }
+    ],
     "technicalAccuracy": number (0-100),
     "communicationSkills": number (0-100),
     "confidence": number (0-100),
@@ -111,7 +113,17 @@ export const generateDetailedFeedback = async (
           score: { type: Type.NUMBER },
           strengths: { type: Type.ARRAY, items: { type: Type.STRING } },
           weaknesses: { type: Type.ARRAY, items: { type: Type.STRING } },
-          suggestions: { type: Type.ARRAY, items: { type: Type.STRING } },
+          suggestions: { 
+            type: Type.ARRAY, 
+            items: { 
+              type: Type.OBJECT,
+              properties: {
+                text: { type: Type.STRING },
+                rationale: { type: Type.STRING }
+              },
+              required: ["text", "rationale"]
+            } 
+          },
           technicalAccuracy: { type: Type.NUMBER },
           communicationSkills: { type: Type.NUMBER },
           confidence: { type: Type.NUMBER },
@@ -125,7 +137,9 @@ export const generateDetailedFeedback = async (
   });
 
   try {
-    return JSON.parse(response.text);
+    const text = response.text;
+    if (!text) throw new Error("Empty response");
+    return JSON.parse(text);
   } catch (e) {
     throw new Error("Failed to parse feedback.");
   }
@@ -147,15 +161,17 @@ export const transcribeAudio = async (base64Audio: string): Promise<string> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: [
-      {
-        inlineData: {
-          mimeType: 'audio/wav',
-          data: base64Audio,
+    contents: {
+      parts: [
+        {
+          inlineData: {
+            mimeType: 'audio/wav',
+            data: base64Audio,
+          },
         },
-      },
-      { text: "Please transcribe this audio accurately." },
-    ],
+        { text: "Please transcribe this audio accurately." },
+      ]
+    },
   });
   return response.text || "";
 };
@@ -219,9 +235,6 @@ export async function decodeAudioData(
 
 export const connectLiveSession = (callbacks: any, systemInstruction: string) => {
   const apiKey = process.env.API_KEY || '';
-  if (!apiKey) {
-    console.error("Live API Key is missing. Check environment variables.");
-  }
   const ai = new GoogleGenAI({ apiKey });
   return ai.live.connect({
     model: 'gemini-2.5-flash-native-audio-preview-12-2025',

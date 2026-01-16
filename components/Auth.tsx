@@ -20,12 +20,12 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
       setTimeout(() => {
         onLogin({
           name: 'Alex',
-          email: 'alex@example.com',
+          email: 'simplykay@example.com',
           isPremium: false,
           subscriptionTier: 'Free',
           interviewsCompleted: 0,
           history: [],
-          avatarUrl: 'https://picsum.photos/seed/google-alex/100/100'
+          avatarUrl: 'https://picsum.photos/seed/google-kay/100/100'
         });
         setLoading(false);
       }, 1000);
@@ -142,7 +142,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                   type="text"
                   required
                   className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3.5 text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all"
-                  placeholder="Alex Johnson"
+                  placeholder="Kay Johnson"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                 />
@@ -154,7 +154,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                 type="email"
                 required
                 className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3.5 text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all"
-                placeholder="alex@example.com"
+                placeholder="simplykay@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />

@@ -127,10 +127,21 @@ const FeedbackReport: React.FC<{ data: FeedbackData, onReset: () => void }> = ({
           <h3 className="font-black text-sm uppercase tracking-widest text-blue-400 mb-6 flex items-center">
             <i className="fas fa-magic mr-3"></i> Tactical Optimization
           </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {data.suggestions.map((s, idx) => (
-              <div key={idx} className="bg-slate-800/60 p-5 rounded-2xl shadow-sm text-xs text-slate-300 border border-slate-700/50 leading-loose flex flex-col justify-center text-center italic">
-                "{s}"
+              <div key={idx} className="bg-slate-800/60 p-5 rounded-2xl shadow-sm border border-slate-700/50 flex flex-col space-y-3">
+                <div className="flex items-start space-x-3">
+                  <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+                    <i className="fas fa-lightbulb text-[10px] text-blue-400"></i>
+                  </div>
+                  <p className="text-xs font-bold text-slate-100 leading-tight">"{s.text}"</p>
+                </div>
+                <div className="pt-2 border-t border-slate-700/30">
+                  <p className="text-[10px] text-slate-400 leading-relaxed">
+                    <span className="font-bold text-blue-500/80 uppercase mr-1">Rationale:</span>
+                    {s.rationale}
+                  </p>
+                </div>
               </div>
             ))}
           </div>
