@@ -11,6 +11,9 @@ export default defineConfig({
       'react-is': 'react-is'
     }
   },
+  preview: {
+    allowedHosts: true
+  },
   build: {
     outDir: 'dist',
     rollupOptions: {
