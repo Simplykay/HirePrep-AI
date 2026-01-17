@@ -69,7 +69,7 @@ const PreparationFlow: React.FC<{ user: UserProfile, onSaveState?: (state: Inter
       
       {/* Navigation & Header */}
       <div className="flex items-center justify-between px-4 mb-4">
-        <Link to="/" className="text-[10px] font-black text-slate-500 hover:text-emerald-400 transition-colors uppercase tracking-[0.2em] flex items-center space-x-2 group">
+        <Link to="/" className="text-xs font-black text-slate-400 hover:text-emerald-400 transition-colors uppercase tracking-[0.2em] flex items-center space-x-3 group bg-slate-900/50 py-2 px-4 rounded-full border border-slate-800">
           <i className="fas fa-arrow-left group-hover:-translate-x-1 transition-transform"></i>
           <span>Dashboard</span>
         </Link>

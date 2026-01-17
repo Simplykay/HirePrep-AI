@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { UserProfile, SubscriptionTier } from '../types';
 
 interface PricingProps {
@@ -113,6 +114,13 @@ const Pricing: React.FC<PricingProps> = ({ user, onUpgrade }) => {
 
   return (
     <div className="py-8 space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <div className="flex justify-start px-4">
+        <Link to="/" className="text-xs font-black text-slate-400 hover:text-emerald-400 transition-colors uppercase tracking-[0.2em] flex items-center space-x-3 group bg-slate-900/50 py-2 px-4 rounded-full border border-slate-800">
+          <i className="fas fa-arrow-left group-hover:-translate-x-1 transition-transform"></i>
+          <span>Dashboard</span>
+        </Link>
+      </div>
+
       <div className="text-center space-y-4 max-w-2xl mx-auto">
         <h2 className="text-4xl font-bold text-slate-100 tracking-tight">Fuel Your Ambition</h2>
         <p className="text-slate-500 text-lg leading-relaxed">Choose a plan that matches your interview timeline. Secure payments supported globally.</p>

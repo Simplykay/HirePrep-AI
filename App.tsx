@@ -199,6 +199,7 @@ const App: React.FC = () => {
         <main className="flex-grow container mx-auto px-4 py-8 max-w-6xl">
           <Routes>
             <Route path="/" element={<Dashboard user={user} />} />
+            <Route path="/history" element={<Dashboard user={user} />} />
             <Route path="/prepare" element={<PreparationFlow user={user} onSaveState={(s) => updateUserInfo({ lastSessionState: s })} />} />
             <Route path="/interview" element={<InterviewRoom user={user} onFinish={addInterviewResult} />} />
             <Route path="/pricing" element={<Pricing user={user} onUpgrade={handleUpgrade} />} />
@@ -212,7 +213,7 @@ const App: React.FC = () => {
 
         <footer className="bg-slate-900 border-t border-slate-800 py-6 mt-auto">
           <div className="container mx-auto px-4 text-center text-slate-500 text-sm">
-            &copy; {new Date().getFullYear()} AfriPrep AI. Helping Africa's talent reach the global stage.
+            &copy; {new Date().getFullYear()} HirePrep AI. Helping Africa's talent reach the global stage.
           </div>
         </footer>
       </div>
