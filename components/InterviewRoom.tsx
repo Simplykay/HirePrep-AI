@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { InterviewState, Message, FeedbackData, InterviewResult } from '../types';
+import { InterviewState, FeedbackData, InterviewResult } from '../types';
 import { 
   decode, 
   decodeAudioData, 
@@ -38,13 +38,16 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
   const [voiceTone, setVoiceTone] = useState("Professional");
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const liveMessagesEndRef = useRef<HTMLDivElement>(null);
   const outputAudioContextRef = useRef<AudioContext | null>(null);
   const liveSessionPromiseRef = useRef<any>(null);
   const nextStartTimeRef = useRef<number>(0);
   const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
   const analyzerRef = useRef<AnalyserNode | null>(null);
   const requestRef = useRef<number>(0);
+
+  // Use refs to prevent stale closures in message callbacks
+  const currentOutputTextRef = useRef('');
+  const currentInputTextRef = useRef('');
 
   useEffect(() => {
     const data = sessionStorage.getItem('current_interview');
@@ -88,6 +91,13 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
       try { source.stop(); } catch (e) {}
     });
     sourcesRef.current.clear();
+  };
+
+  const handleExit = () => {
+    if (window.confirm("Are you sure you want to quit the session? Progress will be saved locally.")) {
+      stopLiveSession();
+      navigate('/');
+    }
   };
 
   const startLiveSession = async (s: InterviewState) => {
@@ -146,18 +156,28 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
         onmessage: async (message: any) => {
           if (message.serverContent?.outputTranscription) {
             setActiveSpeaker('Interviewer');
-            setCurrentOutputText(prev => prev + message.serverContent.outputTranscription.text);
+            const text = message.serverContent.outputTranscription.text;
+            currentOutputTextRef.current += text;
+            setCurrentOutputText(currentOutputTextRef.current);
           } else if (message.serverContent?.inputTranscription) {
             setActiveSpeaker('Candidate');
-            setCurrentInputText(prev => prev + message.serverContent.inputTranscription.text);
+            const text = message.serverContent.inputTranscription.text;
+            currentInputTextRef.current += text;
+            setCurrentInputText(currentInputTextRef.current);
           }
 
           if (message.serverContent?.turnComplete) {
+            const candText = currentInputTextRef.current;
+            const intText = currentOutputTextRef.current;
+            
             setTranscriptions(prev => [
               ...prev, 
-              { role: 'Candidate', text: currentInputText },
-              { role: 'Interviewer', text: currentOutputText }
+              { role: 'Candidate', text: candText },
+              { role: 'Interviewer', text: intText }
             ].filter(t => t.text.trim()));
+
+            currentInputTextRef.current = '';
+            currentOutputTextRef.current = '';
             setCurrentInputText('');
             setCurrentOutputText('');
             setActiveSpeaker(null);
@@ -192,8 +212,8 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
       };
 
       const sysInstr = `You are a professional hiring manager specializing in the ${s.region} market. Interview the candidate for ${s.jobRole}. 
-      Ask high-quality questions. Mention regional context like specific tech ecosystems (e.g., Yaba in Lagos, Upper Hill in Nairobi) if relevant.
-      Ask one concise question at a time.`;
+      Ask high-quality, pointed professional questions. Mention local context if relevant to the role.
+      Wait for the candidate to finish their turn. Be professional, direct, and slightly challenging if difficulty is set to Hard.`;
       
       liveSessionPromiseRef.current = connectLiveSession(callbacks, sysInstr);
     } catch (err) {
@@ -246,12 +266,12 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-140px)] max-w-7xl mx-auto px-6 py-4 animate-fade-in">
+    <div className="flex flex-col h-[calc(100vh-140px)] max-w-7xl mx-auto px-6 py-4 animate-fade-in relative">
       <div className="flex items-center justify-between mb-8 bg-slate-900/60 backdrop-blur-xl p-5 rounded-3xl border border-slate-800 shadow-2xl">
-        <div className="flex items-center space-x-4">
-          <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white">
-            <i className="fas fa-broadcast-tower"></i>
-          </div>
+        <div className="flex items-center space-x-6">
+          <button onClick={handleExit} className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white transition-colors">
+            <i className="fas fa-times text-sm"></i>
+          </button>
           <div>
             <h2 className="text-xl font-black text-white">{state?.jobRole}</h2>
             <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest flex items-center">
@@ -261,7 +281,7 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
           </div>
         </div>
         <button onClick={handleFinish} className="px-8 py-3 bg-white text-slate-950 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-emerald-50 transition-all shadow-xl hover:scale-105 active:scale-95">
-          End Session & Analyze
+          End & Analyze
         </button>
       </div>
 
@@ -272,18 +292,10 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
             <div className="absolute inset-0 pattern-overlay opacity-5"></div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-20 w-full max-w-4xl relative z-10">
-              {/* Interviewer Avatar */}
               <div className="flex flex-col items-center space-y-6">
                 <div className={`w-44 h-44 rounded-[48px] flex items-center justify-center transition-all duration-700 border-4 transform ${activeSpeaker === 'Interviewer' ? 'bg-blue-600/10 border-blue-500 shadow-[0_0_60px_rgba(59,130,246,0.3)] scale-110' : 'bg-slate-950 border-slate-800/50 opacity-40'}`}>
                   <div className="relative">
                     <i className={`fas fa-user-tie text-6xl ${activeSpeaker === 'Interviewer' ? 'text-blue-400' : 'text-slate-700'}`}></i>
-                    {activeSpeaker === 'Interviewer' && (
-                      <div className="absolute -bottom-12 left-1/2 -translate-x-1/2 flex space-x-1">
-                        {[1,2,3,4].map(i => (
-                          <div key={i} className="w-1 bg-blue-500 rounded-full animate-bounce" style={{ height: `${Math.random() * 20 + 5}px`, animationDelay: `${i * 0.1}s` }}></div>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 </div>
                 <div className="text-center">
@@ -291,7 +303,6 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
                 </div>
               </div>
 
-              {/* Candidate Avatar */}
               <div className="flex flex-col items-center space-y-6">
                 <div className={`w-44 h-44 rounded-[48px] flex items-center justify-center transition-all duration-700 border-4 transform ${activeSpeaker === 'Candidate' ? 'bg-emerald-600/10 border-emerald-500 shadow-[0_0_60px_rgba(16,185,129,0.3)] scale-110' : 'bg-slate-950 border-slate-800/50 opacity-40'}`}>
                    <div className="relative">
@@ -318,7 +329,7 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
                 className={`group flex items-center space-x-6 px-16 py-8 rounded-3xl font-black uppercase tracking-[0.2em] text-xs transition-all shadow-2xl ${activeSpeaker === 'Candidate' ? 'bg-emerald-600 text-white hover:bg-emerald-500 scale-105 hover:shadow-emerald-900/40' : 'bg-slate-800 text-slate-600 cursor-not-allowed opacity-50'}`}
               >
                 <i className={`fas ${activeSpeaker === 'Candidate' ? 'fa-microphone-slash' : 'fa-lock'} text-xl`}></i>
-                <span>Submit Response</span>
+                <span>Submit Turn</span>
               </button>
             </div>
           </div>
@@ -327,14 +338,14 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
              {currentInputText || currentOutputText ? (
                 <p className="line-clamp-2 text-lg">"{currentInputText || currentOutputText}"</p>
              ) : (
-                <p className="text-xs font-black uppercase tracking-widest text-slate-600 opacity-40">Transcription stream waiting for signal...</p>
+                <p className="text-xs font-black uppercase tracking-widest text-slate-600 opacity-40">Ready for your professional insights...</p>
              )}
           </div>
         </div>
 
         {/* Sidebar Metrics */}
-        <div className="lg:col-span-3 flex flex-col space-y-6">
-          <div className="bg-slate-900/80 rounded-3xl border border-slate-800 p-6 flex flex-col shadow-2xl h-1/2">
+        <div className="lg:col-span-3 flex flex-col space-y-6 overflow-hidden">
+          <div className="bg-slate-900/80 rounded-3xl border border-slate-800 p-6 flex flex-col shadow-2xl h-1/2 overflow-hidden">
             <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-8 border-b border-slate-800 pb-4">Vocal Telemetry</h3>
             <div className="space-y-10 flex-grow">
               <div className="space-y-3">
@@ -376,12 +387,12 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
           <div className="relative">
             <div className="w-20 h-20 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
             <div className="absolute inset-0 flex items-center justify-center">
-              <i className="fas fa-microphone text-emerald-500"></i>
+              <i className="fas fa-broadcast-tower text-emerald-500 text-xl"></i>
             </div>
           </div>
           <div className="text-center">
-            <p className="text-white font-black uppercase tracking-[0.3em] text-sm">Synchronizing Studio</p>
-            <p className="text-slate-500 text-[10px] mt-2 font-bold uppercase">Preparing {state?.region} Market AI...</p>
+            <p className="text-white font-black uppercase tracking-[0.3em] text-sm">Initializing High-Definition Voice</p>
+            <p className="text-slate-500 text-[10px] mt-2 font-bold uppercase">Connecting to {state?.region} Market AI Studio...</p>
           </div>
         </div>
       )}
@@ -389,8 +400,8 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
       {finishing && (
         <div className="fixed inset-0 z-[110] bg-slate-950/95 flex flex-col items-center justify-center backdrop-blur-2xl">
           <i className="fas fa-microscope text-5xl text-emerald-500 animate-pulse mb-6"></i>
-          <p className="text-white font-black uppercase tracking-[0.4em] text-lg">Generating Dossier</p>
-          <p className="text-slate-500 text-xs mt-4 font-bold max-w-xs text-center leading-relaxed">Synthesizing vocal patterns and competency benchmarks for the global market...</p>
+          <p className="text-white font-black uppercase tracking-[0.4em] text-lg">Synthesizing Performance Data</p>
+          <p className="text-slate-500 text-xs mt-4 font-bold max-w-xs text-center leading-relaxed uppercase tracking-widest">Generating global competency report...</p>
         </div>
       )}
     </div>

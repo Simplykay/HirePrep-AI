@@ -2,14 +2,13 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { UserProfile, InterviewResult } from '../types';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LineChart, Line } from 'recharts';
+import { CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis } from 'recharts';
 
 const Dashboard: React.FC<{ user: UserProfile }> = ({ user }) => {
   const navigate = useNavigate();
   
-  // Transform history for the chart
   const historyData = [...user.history].reverse().map((h, i) => ({
-    name: `Session ${i + 1}`,
+    name: `Sess ${i + 1}`,
     score: h.score,
     date: new Date(h.date).toLocaleDateString()
   }));
@@ -21,6 +20,13 @@ const Dashboard: React.FC<{ user: UserProfile }> = ({ user }) => {
       sessionStorage.setItem('current_interview', JSON.stringify(user.lastSessionState));
       navigate('/interview');
     }
+  };
+
+  const startFreshSession = () => {
+    // Clear any previous session leftovers before navigation
+    sessionStorage.removeItem('current_interview');
+    localStorage.removeItem('active_interview_transcript');
+    navigate('/prepare');
   };
 
   return (
@@ -37,24 +43,24 @@ const Dashboard: React.FC<{ user: UserProfile }> = ({ user }) => {
             </h1>
             <p className="text-emerald-100 text-lg mb-8 opacity-90">
               {user.history.length > 0 
-                ? `Your last score was ${lastSession.score}%. You're accelerating towards a world-class ${lastSession.role} position!`
-                : "Ready to dominate the global job market? Let's start with an international-standard mock interview."}
+                ? `Last performance: ${lastSession.score}%. Keep that momentum for your ${lastSession.role} target!`
+                : "Your global career journey starts here. Launch your first mock interview."}
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
-              <Link 
-                to="/prepare" 
-                className="inline-flex items-center justify-center space-x-2 bg-white text-emerald-600 px-8 py-4 rounded-xl font-bold hover:bg-emerald-50 transition-all transform hover:scale-105 shadow-xl"
+              <button 
+                onClick={startFreshSession}
+                className="inline-flex items-center justify-center space-x-2 bg-white text-emerald-600 px-8 py-4 rounded-xl font-bold hover:bg-emerald-50 transition-all transform hover:scale-105 shadow-xl active:scale-95"
               >
-                <span>New Prep Session</span>
-                <i className="fas fa-plus text-sm"></i>
-              </Link>
+                <i className="fas fa-plus-circle text-sm"></i>
+                <span>Start New Prep</span>
+              </button>
               {user.lastSessionState && (
                 <button 
                   onClick={resumePrep}
-                  className="inline-flex items-center justify-center space-x-2 bg-emerald-700 text-white px-8 py-4 rounded-xl font-bold hover:bg-emerald-800 transition-all border border-emerald-500/30"
+                  className="inline-flex items-center justify-center space-x-2 bg-emerald-700 text-white px-8 py-4 rounded-xl font-bold hover:bg-emerald-800 transition-all border border-emerald-500/30 active:scale-95"
                 >
-                  <span>Resume Studio Session</span>
                   <i className="fas fa-redo text-sm"></i>
+                  <span>Resume Studio</span>
                 </button>
               )}
             </div>
@@ -62,7 +68,7 @@ const Dashboard: React.FC<{ user: UserProfile }> = ({ user }) => {
           
           <div className="flex-shrink-0 bg-emerald-700/50 backdrop-blur-md p-6 rounded-2xl border border-white/20 min-w-[240px]">
              <div className="text-center mb-4">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-200">Global Proficiency Score</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-200">Competency Index</p>
                 <p className="text-5xl font-black text-white">
                   {user.history.length > 0 
                     ? Math.round(user.history.reduce((acc, h) => acc + h.score, 0) / user.history.length)
@@ -76,8 +82,8 @@ const Dashboard: React.FC<{ user: UserProfile }> = ({ user }) => {
                    <p className="text-xl font-bold">{user.interviewsCompleted}</p>
                 </div>
                 <div className="text-center px-4 flex-1">
-                   <p className="text-[9px] font-bold text-emerald-200 uppercase">Status</p>
-                   <p className="text-xl font-bold">Top Tier</p>
+                   <p className="text-[9px] font-bold text-emerald-200 uppercase">Market Tier</p>
+                   <p className="text-lg font-bold">Global</p>
                 </div>
              </div>
           </div>
@@ -89,14 +95,8 @@ const Dashboard: React.FC<{ user: UserProfile }> = ({ user }) => {
         <div className="lg:col-span-2 bg-slate-900/50 p-8 rounded-2xl border border-slate-800/50">
           <div className="flex items-center justify-between mb-8">
             <div>
-              <h2 className="text-xl font-bold text-slate-100">Global Performance Tracker</h2>
-              <p className="text-xs text-slate-500 mt-1">Your professional trend across international sessions.</p>
-            </div>
-            <div className="flex items-center space-x-4">
-               <div className="flex items-center space-x-2">
-                  <div className="w-3 h-3 bg-emerald-500 rounded-full"></div>
-                  <span className="text-[10px] text-slate-400 font-bold uppercase">Industry Score</span>
-               </div>
+              <h2 className="text-xl font-bold text-slate-100">Performance Trend</h2>
+              <p className="text-xs text-slate-500 mt-1">Growth across your sessions.</p>
             </div>
           </div>
           
@@ -123,7 +123,7 @@ const Dashboard: React.FC<{ user: UserProfile }> = ({ user }) => {
             ) : (
               <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-50">
                 <i className="fas fa-chart-line text-4xl text-slate-700"></i>
-                <p className="text-sm text-slate-500">Global insights pending. Complete your first session to unlock!</p>
+                <p className="text-sm text-slate-500">History will appear here after your first prep.</p>
               </div>
             )}
           </div>
@@ -136,52 +136,55 @@ const Dashboard: React.FC<{ user: UserProfile }> = ({ user }) => {
               user.history.map((h) => (
                 <div key={h.id} className="p-4 bg-slate-950 rounded-xl border border-slate-800 hover:border-emerald-500/40 transition-all">
                   <div className="flex justify-between items-start mb-1">
-                    <p className="font-bold text-xs text-slate-200">{h.role}</p>
-                    <span className="text-[10px] font-black text-emerald-500">{h.score}%</span>
+                    <p className="font-bold text-xs text-slate-200 line-clamp-1">{h.role}</p>
+                    <span className="text-[10px] font-black text-emerald-500 ml-2">{h.score}%</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <p className="text-[10px] text-slate-500">{new Date(h.date).toLocaleDateString()}</p>
-                    <Link to="/interview" className="text-[9px] text-emerald-400 font-bold hover:underline">View Transcript</Link>
+                    <button onClick={() => navigate('/prepare')} className="text-[9px] text-emerald-400 font-bold hover:underline">Re-prep</button>
                   </div>
                 </div>
               ))
             ) : (
               <div className="text-center py-8 opacity-40">
-                <p className="text-xs">No records found.</p>
+                <p className="text-xs italic">No transcripts logged yet.</p>
               </div>
             )}
           </div>
-          <Link to="/prepare" className="w-full mt-6 py-3 bg-slate-800 text-white text-center text-xs font-bold rounded-xl hover:bg-slate-700 transition-colors">
-            Start New Prep
-          </Link>
+          <button 
+            onClick={startFreshSession}
+            className="w-full mt-6 py-4 bg-slate-800 text-white text-center text-xs font-black uppercase tracking-widest rounded-xl hover:bg-slate-700 transition-colors shadow-lg active:scale-95"
+          >
+            New Session
+          </button>
         </div>
       </div>
 
-      {/* Global Recommendations */}
+      {/* Market Recommendations */}
       {user.history.length > 0 && (
         <div className="bg-slate-900/50 p-8 rounded-2xl border border-slate-800/50">
-          <h2 className="text-xl font-bold mb-6 text-slate-100">Global Industry Insights</h2>
+          <h2 className="text-xl font-bold mb-6 text-slate-100">AI Career Insights</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="p-5 bg-blue-900/10 border border-blue-500/20 rounded-2xl">
+            <div className="p-6 bg-blue-900/10 border border-blue-500/20 rounded-2xl">
               <div className="w-10 h-10 bg-blue-500/20 text-blue-400 rounded-lg flex items-center justify-center mb-4">
                 <i className="fas fa-graduation-cap"></i>
               </div>
-              <h4 className="font-bold text-sm mb-2 text-blue-100">Market Standard</h4>
-              <p className="text-xs text-slate-400 leading-relaxed">Your technical answers are strong, but aligning more with international design patterns could boost global scores.</p>
+              <h4 className="font-bold text-sm mb-2 text-blue-100 uppercase tracking-widest text-[10px]">Technical Mastery</h4>
+              <p className="text-xs text-slate-400 leading-relaxed font-medium">Your architectural explanations are strong. Keep focusing on scalability when answering system design questions.</p>
             </div>
-            <div className="p-5 bg-purple-900/10 border border-purple-500/20 rounded-2xl">
+            <div className="p-6 bg-purple-900/10 border border-purple-500/20 rounded-2xl">
               <div className="w-10 h-10 bg-purple-500/20 text-purple-400 rounded-lg flex items-center justify-center mb-4">
                 <i className="fas fa-comments"></i>
               </div>
-              <h4 className="font-bold text-sm mb-2 text-purple-100">Communication</h4>
-              <p className="text-xs text-slate-400 leading-relaxed">Maintain the STAR method rigorously for all behavioral rounds as per standard Fortune 500 expectations.</p>
+              <h4 className="font-bold text-sm mb-2 text-purple-100 uppercase tracking-widest text-[10px]">Behavioral Depth</h4>
+              <p className="text-xs text-slate-400 leading-relaxed font-medium">The STAR method is working well. Remember to explicitly state the quantifiable result in your final step.</p>
             </div>
-            <div className="p-5 bg-amber-900/10 border border-amber-500/20 rounded-2xl">
+            <div className="p-6 bg-amber-900/10 border border-amber-500/20 rounded-2xl">
               <div className="w-10 h-10 bg-amber-500/20 text-amber-400 rounded-lg flex items-center justify-center mb-4">
                 <i className="fas fa-globe"></i>
               </div>
-              <h4 className="font-bold text-sm mb-2 text-amber-100">Cross-Culture Fit</h4>
-              <p className="text-xs text-slate-400 leading-relaxed">Your experience with diverse teams is a huge asset. Highlight this for high-growth international roles.</p>
+              <h4 className="font-bold text-sm mb-2 text-amber-100 uppercase tracking-widest text-[10px]">Global Fit</h4>
+              <p className="text-xs text-slate-400 leading-relaxed font-medium">Continue highlighting your cross-border collaboration experience as global companies value cultural adaptability.</p>
             </div>
           </div>
         </div>
