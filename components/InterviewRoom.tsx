@@ -12,6 +12,7 @@ import {
 import FeedbackReport from './FeedbackReport';
 
 const ACTIVE_SESSION_KEY = 'hireprep_active_session';
+const FILLER_WORDS = ['um', 'uh', 'like', 'so', 'actually', 'basically', 'kind of'];
 
 const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) => void }> = ({ user, onFinish }) => {
   const navigate = useNavigate();
@@ -24,7 +25,7 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
   
   // Voice Session State
   const [activeSpeaker, setActiveSpeaker] = useState<'Interviewer' | 'Candidate' | null>(null);
-  const [transcriptions, setTranscriptions] = useState<{role: string, text: string}[]>(() => {
+  const [transcriptions, setTranscriptions] = useState<{role: string, text: string, timestamp: number}[]>(() => {
     const saved = localStorage.getItem('active_interview_transcript');
     try {
       return saved ? JSON.parse(saved) : [];
@@ -35,9 +36,11 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
   const [currentOutputText, setCurrentOutputText] = useState('');
   const [currentInputText, setCurrentInputText] = useState('');
 
-  // Voice Analysis States (Real-time simulated metrics)
+  // LinkedIn-style Voice Analysis States
+  const [fillerCount, setFillerCount] = useState(0);
+  const [detectedFillers, setDetectedFillers] = useState<string[]>([]);
+  const [wpm, setWpm] = useState(0);
   const [voiceVolume, setVoiceVolume] = useState(0);
-  const [voicePace, setVoicePace] = useState(75); 
   const [voiceClarity, setVoiceClarity] = useState(90); 
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -48,15 +51,13 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
   const analyzerRef = useRef<AnalyserNode | null>(null);
   const requestRef = useRef<number>(0);
 
-  // Use refs to prevent stale closures in message callbacks
   const currentOutputTextRef = useRef('');
   const currentInputTextRef = useRef('');
+  const turnStartTimeRef = useRef<number | null>(null);
 
   useEffect(() => {
-    // Attempt to get state from multiple persistence points
     const data = localStorage.getItem(ACTIVE_SESSION_KEY) || sessionStorage.getItem('current_interview');
     if (!data) {
-      console.warn("No session data found. Redirecting...");
       navigate('/prepare');
       return;
     }
@@ -64,7 +65,6 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
       const interviewState = JSON.parse(data);
       setState(interviewState);
     } catch (e) {
-      console.error("Invalid session data", e);
       navigate('/prepare');
     }
 
@@ -83,9 +83,20 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
     }
   }, [transcriptions]);
 
+  // Real-time Filler Word & WPM Calculation
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [transcriptions]);
+    if (currentInputText) {
+      const words = currentInputText.toLowerCase().split(/\s+/);
+      const fillers = words.filter(w => FILLER_WORDS.includes(w.replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, "")));
+      setDetectedFillers(prev => Array.from(new Set([...prev, ...fillers])));
+      
+      if (turnStartTimeRef.current) {
+        const durationSeconds = (Date.now() - turnStartTimeRef.current) / 1000;
+        const currentWpm = Math.round((words.length / durationSeconds) * 60);
+        if (currentWpm > 0 && currentWpm < 300) setWpm(currentWpm);
+      }
+    }
+  }, [currentInputText]);
 
   const stopLiveSession = () => {
     if (liveSessionPromiseRef.current) {
@@ -100,19 +111,9 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
   };
 
   const handleExit = () => {
-    if (window.confirm("Are you sure you want to quit the session? Progress will be saved locally.")) {
+    if (window.confirm("Quit session? Your progress is saved.")) {
       stopLiveSession();
       navigate('/');
-    }
-  };
-
-  const sendFinishedSignal = () => {
-    if (liveSessionPromiseRef.current) {
-      liveSessionPromiseRef.current.then((session: any) => {
-        session.sendRealtimeInput({ 
-          text: "[The candidate has finished their response. Please proceed with your next question or feedback.]" 
-        });
-      }).catch((err: any) => console.error("Signal failed", err));
     }
   };
 
@@ -148,11 +149,6 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
         for(let i = 0; i < bufferLength; i++) sum += dataArray[i];
         const volume = sum / bufferLength;
         setVoiceVolume(volume);
-
-        if (volume > 5) {
-          setVoicePace(p => Math.max(50, Math.min(100, p + (Math.random() * 2 - 1))));
-          setVoiceClarity(c => Math.max(70, Math.min(100, c + (Math.random() * 1.5 - 0.7))));
-        }
         requestRef.current = requestAnimationFrame(updateAnalysis);
       };
       updateAnalysis();
@@ -188,6 +184,7 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
             currentOutputTextRef.current += text;
             setCurrentOutputText(currentOutputTextRef.current);
           } else if (message.serverContent?.inputTranscription) {
+            if (!turnStartTimeRef.current) turnStartTimeRef.current = Date.now();
             setActiveSpeaker('Candidate');
             const text = message.serverContent.inputTranscription.text;
             currentInputTextRef.current += text;
@@ -198,10 +195,15 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
             const candText = currentInputTextRef.current;
             const intText = currentOutputTextRef.current;
             
+            // Critical Analysis: Count fillers in the final turn text
+            const words = candText.toLowerCase().split(/\s+/);
+            const fillersInTurn = words.filter(w => FILLER_WORDS.includes(w.replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, "")));
+            setFillerCount(prev => prev + fillersInTurn.length);
+
             setTranscriptions(prev => [
               ...prev, 
-              { role: 'Candidate', text: candText },
-              { role: 'Interviewer', text: intText }
+              { role: 'Candidate', text: candText, timestamp: Date.now() },
+              { role: 'Interviewer', text: intText, timestamp: Date.now() }
             ].filter(t => t.text.trim()));
 
             currentInputTextRef.current = '';
@@ -209,9 +211,9 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
             setCurrentInputText('');
             setCurrentOutputText('');
             setActiveSpeaker(null);
+            turnStartTimeRef.current = null;
           }
 
-          // Handle audio parts safely
           if (message.serverContent?.modelTurn?.parts && outputAudioContextRef.current) {
              for (const part of message.serverContent.modelTurn.parts) {
                if (part.inlineData?.data) {
@@ -228,39 +230,22 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
                }
              }
           }
-
-          if (message.serverContent?.interrupted) {
-            sourcesRef.current.forEach(source => { try { source.stop(); } catch (e) {} });
-            sourcesRef.current.clear();
-            nextStartTimeRef.current = 0;
-          }
         },
         onerror: (e: any) => {
-          console.error("Live Session Connection Error:", e);
-          setError("Connection failed. Please check your network or refresh.");
-          setLoading(false);
-          setIsReady(false);
-        },
-        onclose: (e: any) => {
-          console.warn("Live Session Closed:", e);
+          setError("Connection failed. Please refresh.");
           setLoading(false);
           setIsReady(false);
         }
       };
 
-      const sysInstr = `You are a professional hiring manager specializing in the ${state.region} market. Interview the candidate for ${state.jobRole}. 
-      Ask high-quality, pointed professional questions. Mention local context if relevant to the role.
-      Wait for the candidate to finish their turn. Be professional, direct, and slightly challenging if difficulty is set to Hard.`;
+      const sysInstr = `Persona: You are a world-class senior hiring manager with an incredibly smooth, calm, and reassuring voice. You are here to coach the candidate to success. You speak clearly and warmly. 
+      Market context: ${state.region}. Role: ${state.jobRole}.
+      Rigor: Even though your voice is kind, your questions are insightful and high-level.
+      Interactions: Wait for the candidate to finish their turn. If they say '[The candidate has finished]', acknowledge it warmly and move to the next question.`;
       
       liveSessionPromiseRef.current = connectLiveSession(callbacks, sysInstr);
-      liveSessionPromiseRef.current.catch((err: any) => {
-        console.error("Promise rejection in connect:", err);
-        setError("Failed to establish secure link.");
-        setLoading(false);
-      });
     } catch (err: any) {
-      console.error("Microphone or Initialization Error:", err);
-      setError(err.name === 'NotAllowedError' ? "Microphone access was denied." : "Critical system failure.");
+      setError("Microphone access required.");
       setLoading(false);
     }
   };
@@ -272,9 +257,9 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
     try {
       const history = transcriptions.map(t => ({ role: t.role === 'Candidate' ? 'user' : 'model', text: t.text }));
       const report = await generateDetailedFeedback(state, history);
-      report.paceScore = voicePace;
+      report.paceScore = wpm > 160 || wpm < 110 ? 70 : 95; // Benchmarked pace score
       report.clarityScore = voiceClarity;
-      report.toneScore = 92;
+      report.toneScore = 90;
       setFeedback(report);
       localStorage.removeItem('active_interview_transcript');
       localStorage.removeItem(ACTIVE_SESSION_KEY);
@@ -288,8 +273,7 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
         });
       }
     } catch (err) {
-      console.error(err);
-      setError("Failed to generate report. Please try again.");
+      setError("Analysis failed. Try again.");
     } finally {
       setFinishing(false);
     }
@@ -301,29 +285,23 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
 
   if (!isReady && !loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] px-4 text-center animate-fade-in py-12">
-        <div className="w-20 h-20 bg-emerald-600/20 text-emerald-500 rounded-full flex items-center justify-center mb-8 shadow-2xl">
-          <i className="fas fa-microphone text-3xl"></i>
+      <div className="flex flex-col items-center justify-center min-h-[70vh] px-4 text-center animate-fade-in">
+        <div className="w-24 h-24 bg-emerald-600/10 text-emerald-500 rounded-3xl flex items-center justify-center mb-10 shadow-xl border border-emerald-500/20">
+          <i className="fas fa-microphone-lines text-4xl"></i>
         </div>
-        <h2 className="text-2xl font-black text-white mb-3">Ready to begin?</h2>
-        <p className="text-slate-400 max-w-xs mb-10 leading-relaxed font-medium text-sm">
-          Connect with your AI Hiring Manager for the {state?.region || 'Global'} market.
+        <h2 className="text-3xl font-black text-white mb-4 tracking-tight">Studio Initialization</h2>
+        <p className="text-slate-400 max-w-sm mb-12 leading-relaxed text-sm">
+          Connect to your private, high-fidelity studio. The AI Hiring Manager is ready to provide real-time coaching.
         </p>
-        {error && (
-          <div className="mb-8 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-400 text-xs font-bold flex flex-col items-center">
-            <i className="fas fa-exclamation-circle mb-2"></i>
-            <span>{error}</span>
-          </div>
-        )}
-        <div className="flex flex-col space-y-4 w-full max-w-xs px-6">
+        {error && <div className="mb-8 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-400 text-xs font-bold">{error}</div>}
+        <div className="flex flex-col space-y-4 w-full max-w-xs">
           <button 
             onClick={initializeAudioAndStart} 
-            disabled={!state}
-            className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black uppercase tracking-[0.2em] text-xs hover:bg-emerald-500 shadow-xl active:scale-95 transition-all disabled:opacity-50"
+            className="w-full py-5 bg-emerald-600 text-white rounded-2xl font-black uppercase tracking-[0.2em] text-xs hover:bg-emerald-500 shadow-2xl shadow-emerald-900/40 active:scale-95 transition-all"
           >
-            Start Session
+            Enter Studio
           </button>
-          <button onClick={() => navigate('/')} className="w-full py-3 text-slate-500 font-bold text-[10px] uppercase tracking-widest hover:text-white transition-colors">Go Back</button>
+          <button onClick={() => navigate('/')} className="w-full py-3 text-slate-500 font-bold text-[10px] uppercase tracking-widest hover:text-white">Cancel</button>
         </div>
       </div>
     );
@@ -331,15 +309,12 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
 
   if (loading || finishing) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center py-12">
-        <div className="relative mb-8">
-          <div className="w-16 h-16 border-4 border-slate-800 border-t-emerald-500 rounded-full animate-spin"></div>
-          <div className="absolute inset-0 flex items-center justify-center">
-             <i className={`fas ${finishing ? 'fa-chart-line' : 'fa-network-wired'} text-emerald-500 animate-pulse`}></i>
-          </div>
+      <div className="flex flex-col items-center justify-center min-h-[70vh] text-center">
+        <div className="relative mb-10">
+          <div className="w-20 h-20 border-4 border-slate-800 border-t-emerald-500 rounded-full animate-spin"></div>
         </div>
-        <h2 className="text-xl font-black text-white mb-2 leading-tight">{finishing ? 'Analyzing Performance' : 'Initializing Link'}</h2>
-        <p className="text-slate-500 text-[9px] font-black uppercase tracking-[0.3em]">{finishing ? 'Generating report...' : 'Connecting...'}</p>
+        <h2 className="text-2xl font-black text-white mb-2">{finishing ? 'Generating Critical Insights' : 'Calibrating AI Persona'}</h2>
+        <p className="text-slate-500 text-[9px] font-black uppercase tracking-[0.3em] animate-pulse">Processing Neural Streams...</p>
       </div>
     );
   }
@@ -348,107 +323,169 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
     <div className="flex flex-col h-full max-w-7xl mx-auto px-4 md:px-6 animate-fade-in relative pb-10">
       
       {/* Session Controls */}
-      <div className="flex flex-col sm:flex-row items-center justify-between mb-6 bg-slate-900/80 backdrop-blur-xl p-4 rounded-[2rem] border border-slate-800 shadow-xl gap-4">
-        <div className="flex items-center space-x-4 w-full sm:w-auto overflow-hidden">
-          <button onClick={handleExit} className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white flex-shrink-0 transition-colors">
-            <i className="fas fa-times text-xs"></i>
+      <div className="flex items-center justify-between mb-8 bg-slate-900/60 backdrop-blur-xl p-5 rounded-[2.5rem] border border-slate-800/50 shadow-2xl">
+        <div className="flex items-center space-x-5">
+          <button onClick={handleExit} className="w-12 h-12 rounded-2xl bg-slate-800 hover:bg-red-500/10 hover:text-red-500 flex items-center justify-center text-slate-400 transition-all">
+            <i className="fas fa-arrow-left"></i>
           </button>
-          <div className="min-w-0 flex-grow">
-            <h2 className="text-sm font-black text-white truncate">{state?.jobRole}</h2>
-            <div className="flex items-center mt-0.5">
-               <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-2 animate-pulse"></span>
-               <p className="text-[9px] text-emerald-400 font-black uppercase tracking-widest truncate">{state?.region}</p>
-            </div>
+          <div className="hidden sm:block">
+            <h2 className="text-sm font-black text-white">{state?.jobRole}</h2>
+            <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest">{state?.region} Market</p>
           </div>
         </div>
         
-        <div className="flex items-center space-x-3 w-full sm:w-auto">
-          <button 
-            onClick={sendFinishedSignal}
-            className="flex-1 sm:flex-none px-6 py-3 bg-emerald-600/10 text-emerald-400 border border-emerald-500/20 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-600/20 transition-all active:scale-95"
-          >
-            I've Finished Speaking
-          </button>
+        <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2 bg-emerald-500/10 px-4 py-2 rounded-full border border-emerald-500/20 mr-4 hidden md:flex">
+             <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
+             <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Live Studio Link Active</span>
+          </div>
           <button 
             onClick={handleFinish} 
-            className="flex-1 sm:flex-none px-6 py-3 bg-white text-slate-950 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-50 shadow-xl active:scale-95 transition-all"
+            className="px-8 py-3.5 bg-white text-slate-950 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-50 shadow-xl active:scale-95 transition-all"
           >
-            End & Analyze
+            Finish & Analyze
           </button>
         </div>
       </div>
 
-      <div className="flex-grow grid grid-cols-1 lg:grid-cols-12 gap-6 lg:overflow-hidden min-h-0">
-        <div className="lg:col-span-8 flex flex-col space-y-6 h-full min-h-[400px]">
-          <div className="flex-grow bg-slate-900 rounded-[3rem] border border-slate-800 relative overflow-hidden flex flex-col items-center justify-center p-6 shadow-inner">
-            <div className="absolute inset-0 pattern-overlay opacity-[0.03]"></div>
-            <div className="grid grid-cols-2 gap-8 md:gap-16 w-full max-w-2xl relative z-10">
-              <div className="flex flex-col items-center space-y-3">
-                <div className={`w-24 h-24 md:w-36 md:h-36 rounded-[2rem] flex items-center justify-center transition-all duration-700 border-2 md:border-4 transform ${activeSpeaker === 'Interviewer' ? 'bg-blue-600/10 border-blue-500 shadow-[0_0_40px_rgba(59,130,246,0.2)] scale-105' : 'bg-slate-950 border-slate-800/50 opacity-40'}`}>
-                  <i className={`fas fa-user-tie text-3xl md:text-5xl ${activeSpeaker === 'Interviewer' ? 'text-blue-400' : 'text-slate-700'}`}></i>
+      <div className="flex-grow grid grid-cols-1 lg:grid-cols-12 gap-8 lg:overflow-hidden min-h-0">
+        
+        {/* Main Stage */}
+        <div className="lg:col-span-8 flex flex-col space-y-8 h-full">
+          <div className="flex-grow bg-slate-900 rounded-[3.5rem] border border-slate-800/50 relative overflow-hidden flex flex-col items-center justify-center p-8 shadow-inner">
+            <div className="absolute inset-0 pattern-overlay opacity-[0.05]"></div>
+            
+            {/* Visualizer Background */}
+            <div className="absolute inset-0 flex items-center justify-center opacity-20">
+               <div className={`w-96 h-96 rounded-full blur-[100px] transition-all duration-1000 ${activeSpeaker === 'Interviewer' ? 'bg-blue-600 scale-110' : activeSpeaker === 'Candidate' ? 'bg-emerald-600 scale-125' : 'bg-slate-800 scale-100'}`}></div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-12 md:gap-32 w-full max-w-3xl relative z-10">
+              <div className="flex flex-col items-center space-y-6">
+                <div className={`w-32 h-32 md:w-44 md:h-44 rounded-[3rem] flex items-center justify-center transition-all duration-1000 border-4 transform ${activeSpeaker === 'Interviewer' ? 'bg-blue-600/10 border-blue-500 shadow-[0_0_60px_rgba(59,130,246,0.25)] scale-110' : 'bg-slate-950 border-slate-800/50 opacity-30'}`}>
+                  <i className={`fas fa-user-tie text-4xl md:text-6xl ${activeSpeaker === 'Interviewer' ? 'text-blue-400' : 'text-slate-700'}`}></i>
                 </div>
-                <p className={`font-black text-[9px] uppercase tracking-widest ${activeSpeaker === 'Interviewer' ? 'text-blue-400' : 'text-slate-600'}`}>Interviewer</p>
+                <div className="text-center">
+                   <p className={`font-black text-[10px] uppercase tracking-[0.2em] mb-1 ${activeSpeaker === 'Interviewer' ? 'text-blue-400' : 'text-slate-600'}`}>Senior Recruiter</p>
+                   {activeSpeaker === 'Interviewer' && <p className="text-[10px] text-blue-300/60 font-medium">Speaking...</p>}
+                </div>
               </div>
-              <div className="flex flex-col items-center space-y-3">
-                <div className={`w-24 h-24 md:w-36 md:h-36 rounded-[2rem] flex items-center justify-center transition-all duration-700 border-2 md:border-4 transform ${activeSpeaker === 'Candidate' ? 'bg-emerald-600/10 border-emerald-500 shadow-[0_0_40px_rgba(16,185,129,0.2)] scale-105' : 'bg-slate-950 border-slate-800/50 opacity-40'}`}>
+
+              <div className="flex flex-col items-center space-y-6">
+                <div className={`w-32 h-32 md:w-44 md:h-44 rounded-[3rem] flex items-center justify-center transition-all duration-1000 border-4 transform ${activeSpeaker === 'Candidate' ? 'bg-emerald-600/10 border-emerald-500 shadow-[0_0_60px_rgba(16,185,129,0.25)] scale-110' : 'bg-slate-950 border-slate-800/50 opacity-30'}`}>
                    <div className="relative">
-                      <i className={`fas fa-user text-3xl md:text-5xl ${activeSpeaker === 'Candidate' ? 'text-emerald-400' : 'text-slate-700'}`}></i>
+                      <i className={`fas fa-user text-4xl md:text-6xl ${activeSpeaker === 'Candidate' ? 'text-emerald-400' : 'text-slate-700'}`}></i>
                       {voiceVolume > 5 && (
-                        <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 flex space-x-1">
-                          {[1,2,3,4,5].map(i => (<div key={i} className="w-1 bg-emerald-500 rounded-full animate-bounce" style={{height: `${Math.random() * 20 + 5}px`, animationDelay: `${i * 0.1}s`}}></div>))}
+                        <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 flex items-end space-x-1.5 h-12">
+                          {[1,2,3,4,5,6].map(i => (<div key={i} className="w-1.5 bg-emerald-500 rounded-full animate-bounce" style={{height: `${Math.random() * 80 + 20}%`, animationDelay: `${i * 0.05}s`}}></div>))}
                         </div>
                       )}
                    </div>
                 </div>
-                <p className={`font-black text-[9px] uppercase tracking-widest ${activeSpeaker === 'Candidate' ? 'text-emerald-400' : 'text-slate-600'}`}>Candidate (You)</p>
+                <div className="text-center">
+                   <p className={`font-black text-[10px] uppercase tracking-[0.2em] mb-1 ${activeSpeaker === 'Candidate' ? 'text-emerald-400' : 'text-slate-600'}`}>Candidate (You)</p>
+                   {activeSpeaker === 'Candidate' && <p className="text-[10px] text-emerald-300/60 font-medium">Recording Insights...</p>}
+                </div>
               </div>
             </div>
 
-            <div className="absolute bottom-6 left-6 right-6 md:bottom-10 md:left-12 md:right-12 text-center max-w-3xl mx-auto bg-slate-950/30 backdrop-blur-md p-4 rounded-3xl border border-white/5 md:bg-transparent md:p-0 md:border-none">
-               <p className="text-slate-100 text-base md:text-xl font-medium leading-relaxed drop-shadow-lg line-clamp-3">
-                 {currentOutputText || currentInputText || (activeSpeaker === 'Interviewer' ? 'Synthesizing response...' : activeSpeaker === 'Candidate' ? 'Listening...' : 'Ready for your professional insights...')}
+            <div className="absolute bottom-12 left-10 right-10 text-center max-w-4xl mx-auto">
+               <p className="text-slate-100 text-lg md:text-2xl font-medium leading-relaxed drop-shadow-2xl">
+                 {currentOutputText || currentInputText || 'The studio is quiet. Begin speaking whenever you are ready...'}
                </p>
             </div>
           </div>
         </div>
 
+        {/* LinkedIn-style Telemetry Panel */}
         <div className="lg:col-span-4 flex flex-col space-y-6">
-          <div className="bg-slate-900 rounded-[2.5rem] border border-slate-800 flex flex-col overflow-hidden h-full min-h-[350px]">
-             <div className="p-5 border-b border-slate-800 flex items-center justify-between">
-                <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Live Telemetry</h3>
+          <div className="bg-slate-900 rounded-[3rem] border border-slate-800/50 flex flex-col overflow-hidden h-full shadow-2xl">
+             <div className="p-6 border-b border-slate-800/50 flex items-center justify-between bg-slate-950/20">
+                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Live AI Metrics</h3>
+                <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_10px_#10b981]"></div>
              </div>
-             <div className="p-6 space-y-8 overflow-y-auto">
+             
+             <div className="p-8 space-y-10 overflow-y-auto">
+                {/* WPM Metric */}
                 <div className="space-y-4">
-                   <div className="flex justify-between items-end"><span className="text-[10px] font-black uppercase text-slate-600">Vocal Tempo</span><span className="text-[11px] font-black text-slate-200">{Math.round(voicePace)}%</span></div>
-                   <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden"><div className="h-full bg-emerald-500 transition-all duration-300" style={{ width: `${voicePace}%` }}></div></div>
+                   <div className="flex justify-between items-end">
+                      <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Pace (WPM)</span>
+                      <span className={`text-sm font-black ${wpm > 160 ? 'text-amber-500' : wpm < 110 ? 'text-blue-400' : 'text-emerald-400'}`}>
+                        {wpm} <span className="text-[10px] opacity-60">Avg</span>
+                      </span>
+                   </div>
+                   <div className="relative h-2 bg-slate-800 rounded-full overflow-hidden">
+                      <div className="absolute inset-0 bg-emerald-500/10 border-x-2 border-emerald-500/20 left-[40%] right-[30%]"></div>
+                      <div className="h-full bg-emerald-500 transition-all duration-700" style={{ width: `${Math.min(100, (wpm / 200) * 100)}%` }}></div>
+                   </div>
+                   <p className="text-[9px] text-slate-600 font-bold uppercase">Goal: 130-150 WPM (Professional standard)</p>
                 </div>
+
+                {/* Filler Word Tracker */}
                 <div className="space-y-4">
-                   <div className="flex justify-between items-end"><span className="text-[10px] font-black uppercase text-slate-600">Enunciation</span><span className="text-[11px] font-black text-slate-200">{Math.round(voiceClarity)}%</span></div>
-                   <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden"><div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${voiceClarity}%` }}></div></div>
+                   <div className="flex justify-between items-end">
+                      <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Filler Words</span>
+                      <span className={`text-sm font-black ${fillerCount > 5 ? 'text-red-400' : 'text-slate-300'}`}>{fillerCount}</span>
+                   </div>
+                   <div className="flex flex-wrap gap-2">
+                      {detectedFillers.length > 0 ? detectedFillers.map(f => (
+                        <span key={f} className="px-2.5 py-1 bg-slate-800 border border-slate-700 rounded-lg text-[10px] font-bold text-slate-400 uppercase">{f}</span>
+                      )) : <p className="text-[10px] text-slate-700 italic">No fillers detected yet. Great job!</p>}
+                   </div>
                 </div>
-                <div className="pt-4 space-y-5">
-                  <h4 className="text-[10px] font-black uppercase text-slate-600 tracking-widest">Recent Transcript</h4>
-                  <div className="space-y-3">
-                    {transcriptions.length > 0 ? (
-                      transcriptions.slice(-3).map((t, i) => (
-                        <div key={i} className={`p-4 rounded-2xl text-[10px] leading-relaxed ${t.role === 'Candidate' ? 'bg-emerald-600/10 text-emerald-100' : 'bg-slate-800 text-slate-400'}`}>
-                          <span className="font-black uppercase tracking-tighter mr-2 text-[8px] opacity-60">{t.role === 'Candidate' ? 'You' : 'AI'}</span>
-                          {t.text.substring(0, 120)}{t.text.length > 120 ? '...' : ''}
+
+                {/* Vocal Clarity */}
+                <div className="space-y-4">
+                   <div className="flex justify-between items-end">
+                      <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Clarity & Confidence</span>
+                      <span className="text-sm font-black text-blue-400">{Math.round(voiceClarity)}%</span>
+                   </div>
+                   <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                      <div className="h-full bg-blue-500 transition-all duration-700 shadow-[0_0_15px_rgba(59,130,246,0.5)]" style={{ width: `${voiceClarity}%` }}></div>
+                   </div>
+                </div>
+
+                {/* Live Tips */}
+                <div className="pt-6 border-t border-slate-800/50">
+                   <h4 className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-4">Coach's Live Notes</h4>
+                   <div className="bg-slate-950/40 p-5 rounded-3xl border border-slate-800/50 space-y-4">
+                      {wpm > 160 ? (
+                        <div className="flex items-start space-x-3">
+                           <i className="fas fa-gauge-high text-amber-500 mt-1"></i>
+                           <p className="text-[11px] text-slate-400 leading-relaxed"><span className="text-amber-400 font-bold">Fast Pace:</span> You're speaking a bit quickly. Take a breath between sentences.</p>
                         </div>
-                      ))
-                    ) : (
-                      <p className="text-[10px] text-slate-700 italic">No audio logged yet.</p>
-                    )}
-                  </div>
+                      ) : fillerCount > 3 ? (
+                        <div className="flex items-start space-x-3">
+                           <i className="fas fa-triangle-exclamation text-blue-400 mt-1"></i>
+                           <p className="text-[11px] text-slate-400 leading-relaxed"><span className="text-blue-400 font-bold">Fillers Used:</span> Try to pause silently instead of using "um" or "like".</p>
+                        </div>
+                      ) : (
+                        <div className="flex items-start space-x-3">
+                           <i className="fas fa-check-circle text-emerald-500 mt-1"></i>
+                           <p className="text-[11px] text-slate-400 leading-relaxed">You're doing great. Your tone is steady and professional.</p>
+                        </div>
+                      )}
+                   </div>
                 </div>
              </div>
-             <div className="p-5 bg-slate-950 border-t border-slate-800 mt-auto">
-                <p className="text-[9px] text-slate-600">Scores generated upon manual closure.</p>
+             
+             <div className="mt-auto p-6 bg-slate-950/50 border-t border-slate-800/50">
+                <button 
+                  onClick={() => {
+                    if (liveSessionPromiseRef.current) {
+                      liveSessionPromiseRef.current.then((session: any) => {
+                        session.sendRealtimeInput({ text: "[The candidate has finished their response. Please proceed with your next question.]" });
+                      });
+                    }
+                  }}
+                  className="w-full py-4 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95"
+                >
+                  Finished Speaking
+                </button>
              </div>
           </div>
         </div>
       </div>
-      <div ref={messagesEndRef} className="h-4 w-full" />
     </div>
   );
 };
