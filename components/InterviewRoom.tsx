@@ -125,20 +125,37 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
     const firstName = user?.name ? user.name.split(' ')[0] : 'Candidate';
 
     try {
+      // Single AudioContext Architecture for Mobile Stability
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      // MOBILE FIX: Do not force sampleRate in constructor. Let the browser use native hardware rate.
-      const outCtx = new AudioCtx(); 
-      const inCtx = new AudioCtx();
+      const ctx = new AudioCtx();
       
-      // Ensure contexts are running (vital for mobile touch-to-play)
-      if (outCtx.state === 'suspended') await outCtx.resume();
-      if (inCtx.state === 'suspended') await inCtx.resume();
-      
-      outputAudioContextRef.current = outCtx;
+      // iOS Audio Unlock Strategy:
+      // Play a tiny silent buffer immediately to unlock the AudioContext on iOS/Safari.
+      const silentBuffer = ctx.createBuffer(1, 1, 22050);
+      const silentSource = ctx.createBufferSource();
+      silentSource.buffer = silentBuffer;
+      silentSource.connect(ctx.destination);
+      silentSource.start(0);
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const sourceNode = inCtx.createMediaStreamSource(stream);
-      const analyzer = inCtx.createAnalyser();
+      // Ensure context is running
+      if (ctx.state === 'suspended') {
+        await ctx.resume();
+      }
+      
+      outputAudioContextRef.current = ctx;
+
+      // Mobile Audio Constraints
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 16000 // Hint to browser, though often ignored on mobile
+        } 
+      });
+      
+      const sourceNode = ctx.createMediaStreamSource(stream);
+      const analyzer = ctx.createAnalyser();
       analyzer.fftSize = 256;
       sourceNode.connect(analyzer);
       analyzerRef.current = analyzer;
@@ -161,13 +178,14 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
         onopen: () => {
           setLoading(false);
           setIsReady(true);
-          const scriptProcessor = inCtx.createScriptProcessor(4096, 1, 1);
+          // 4096 buffer size offers a balance between latency and performance on mobile
+          const scriptProcessor = ctx.createScriptProcessor(4096, 1, 1);
           scriptProcessor.onaudioprocess = (e: any) => {
             const inputData = e.inputBuffer.getChannelData(0);
-            const sourceRate = inCtx.sampleRate;
+            const sourceRate = ctx.sampleRate;
             const targetRate = 16000;
             
-            // MOBILE FIX: Downsample audio if system rate > 16000Hz (e.g. 48kHz on Android/iOS)
+            // Downsample audio if system rate > 16000Hz (common 48kHz on mobile)
             let pcmData: Int16Array;
             
             if (sourceRate !== targetRate) {
@@ -176,9 +194,7 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
               pcmData = new Int16Array(newLength);
               for (let i = 0; i < newLength; i++) {
                 const offset = Math.floor(i * ratio);
-                // Clamp index to avoid OOB
                 const val = inputData[Math.min(offset, inputData.length - 1)]; 
-                // Simple clamp for int16 conversion
                 pcmData[i] = Math.max(-1, Math.min(1, val)) * 32767;
               }
             } else {
@@ -200,7 +216,7 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
             }
           };
           sourceNode.connect(scriptProcessor);
-          scriptProcessor.connect(inCtx.destination);
+          scriptProcessor.connect(ctx.destination); // Necessary for script processor to run, but outputs silence by default
         },
         onmessage: async (message: any) => {
           if (message.serverContent?.outputTranscription) {
@@ -242,9 +258,9 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
              for (const part of message.serverContent.modelTurn.parts) {
                if (part.inlineData?.data) {
                   const audioData = part.inlineData.data;
+                  // Ensure we use the current context time to schedule audio
                   nextStartTimeRef.current = Math.max(nextStartTimeRef.current, outputAudioContextRef.current.currentTime);
-                  // Pass 24000 explicitly as source rate; decodeAudioData will create a buffer at this rate.
-                  // The AudioContext (which might be 48k) will automatically handle the upsampling during playback.
+                  
                   const audioBuffer = await decodeAudioData(decode(audioData), outputAudioContextRef.current, 24000, 1);
                   const source = outputAudioContextRef.current.createBufferSource();
                   source.buffer = audioBuffer;

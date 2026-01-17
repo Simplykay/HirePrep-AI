@@ -10,46 +10,6 @@ import Auth from './components/Auth';
 import { UserProfile, SubscriptionTier, InterviewResult } from './types';
 import { createChatSession } from './services/geminiService';
 
-// Floating Corner Component for Onboarding/Celebration
-const CornerCelebration: React.FC<{ user: UserProfile }> = ({ user }) => {
-  const [visible, setVisible] = useState(false);
-  const location = useLocation();
-
-  useEffect(() => {
-    if (location.pathname === '/interview') {
-      setVisible(false);
-      return;
-    }
-    const timer = setTimeout(() => setVisible(true), 1500);
-    const hideTimer = setTimeout(() => setVisible(false), 8000);
-    return () => { clearTimeout(timer); clearTimeout(hideTimer); };
-  }, [location.pathname]);
-
-  if (!visible) return null;
-
-  return (
-    <div className="fixed bottom-6 right-6 z-[60] animate-slide-in-right hidden md:block">
-      <div className="glass border border-emerald-500/30 rounded-2xl p-4 shadow-2xl flex items-center space-x-4 max-w-xs success-glow">
-        <div className="relative">
-          <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-emerald-500 animate-float">
-            <img src={`https://i.pravatar.cc/150?u=${encodeURIComponent(user.name)}`} alt="Recruiter" />
-          </div>
-          <div className="absolute -bottom-1 -right-1 bg-emerald-500 w-4 h-4 rounded-full flex items-center justify-center border-2 border-slate-900">
-            <i className="fas fa-check text-[8px] text-white"></i>
-          </div>
-        </div>
-        <div className="flex-grow">
-          <p className="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-1">Success Mentor</p>
-          <p className="text-sm text-slate-200">"Looking sharp, {user.name.split(' ')[0]}! Ready to secure that offer?"</p>
-        </div>
-        <button onClick={() => setVisible(false)} className="text-slate-600 hover:text-slate-400 transition-colors ml-2">
-          <i className="fas fa-times text-xs"></i>
-        </button>
-      </div>
-    </div>
-  );
-};
-
 // Global Chatbot UI
 const AIChatAssistant: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -232,7 +192,6 @@ const App: React.FC = () => {
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </main>
-            <CornerCelebration user={user} />
             <AIChatAssistant />
             <footer className="bg-slate-900 border-t border-slate-800 py-8 mt-auto">
               <div className="container mx-auto px-6 flex flex-col md:flex-row items-center justify-between text-slate-500 text-[10px] font-bold uppercase tracking-widest gap-4">
