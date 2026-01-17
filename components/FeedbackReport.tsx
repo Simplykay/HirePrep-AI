@@ -6,139 +6,145 @@ import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Responsi
 const FeedbackReport: React.FC<{ data: FeedbackData, onReset: () => void }> = ({ data, onReset }) => {
   const chartData = [
     { subject: 'Technical', A: data.technicalAccuracy, fullMark: 100 },
-    { subject: 'Communication', A: data.communicationSkills, fullMark: 100 },
+    { subject: 'Comm.', A: data.communicationSkills, fullMark: 100 },
     { subject: 'Confidence', A: data.confidence, fullMark: 100 },
-    { subject: 'Vocal Tone', A: data.toneScore, fullMark: 100 },
-    { subject: 'Speech Pace', A: data.paceScore, fullMark: 100 },
+    { subject: 'Tone', A: data.toneScore, fullMark: 100 },
+    { subject: 'Pace', A: data.paceScore, fullMark: 100 },
     { subject: 'Clarity', A: data.clarityScore, fullMark: 100 },
   ];
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8 animate-in zoom-in-95 duration-500 pb-12">
-      <div className="bg-slate-900 p-8 rounded-3xl shadow-2xl border border-slate-800">
-        <div className="flex flex-col md:flex-row items-center justify-between mb-10 space-y-4 md:space-y-0">
-          <div>
-            <h2 className="text-3xl font-bold text-slate-100">Performance Ecosystem</h2>
-            <p className="text-slate-500">Comprehensive breakdown of your global interview readiness.</p>
+    <div className="max-w-6xl mx-auto space-y-12 animate-in zoom-in-95 duration-700 pb-20">
+      <div className="bg-slate-900 p-10 md:p-14 rounded-[40px] shadow-2xl border border-slate-800 relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-emerald-500 via-blue-500 to-amber-500"></div>
+        
+        <div className="flex flex-col md:flex-row items-center justify-between mb-16 space-y-8 md:space-y-0">
+          <div className="text-center md:text-left">
+            <h2 className="text-4xl font-black text-slate-100 tracking-tight">Performance Ecosystem</h2>
+            <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px] mt-2">Dossier ID: HP-{Math.floor(Math.random() * 9000) + 1000}</p>
           </div>
-          <div className="relative w-36 h-36 flex items-center justify-center">
+          <div className="relative w-44 h-44 flex items-center justify-center">
             <svg className="w-full h-full transform -rotate-90">
-              <circle cx="72" cy="72" r="66" stroke="currentColor" strokeWidth="10" fill="transparent" className="text-slate-800" />
-              <circle cx="72" cy="72" r="66" stroke="currentColor" strokeWidth="10" fill="transparent" 
-                strokeDasharray={414.7}
-                strokeDashoffset={414.7 - (414.7 * data.score) / 100}
-                className="text-emerald-500 transition-all duration-1000 ease-out"
+              <circle cx="88" cy="88" r="82" stroke="currentColor" strokeWidth="12" fill="transparent" className="text-slate-800" />
+              <circle cx="88" cy="88" r="82" stroke="currentColor" strokeWidth="12" fill="transparent" 
+                strokeDasharray={515.2}
+                strokeDashoffset={515.2 - (515.2 * data.score) / 100}
+                strokeLinecap="round"
+                className="text-emerald-500 transition-all duration-1000 ease-out drop-shadow-[0_0_8px_rgba(16,185,129,0.4)]"
               />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-4xl font-black text-emerald-400">{data.score}</span>
-              <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Index</span>
+              <span className="text-5xl font-black text-white">{data.score}</span>
+              <span className="text-[10px] text-emerald-400 uppercase font-black tracking-widest mt-1">Global Index</span>
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center mb-12">
-          <div className="h-80 md:h-[450px] bg-slate-950/50 rounded-3xl p-6 border border-slate-800/50 relative">
-            <div className="absolute top-4 left-6 text-[10px] font-black uppercase text-slate-600 tracking-widest">Global Competency Map</div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center mb-16">
+          <div className="h-96 bg-slate-950 rounded-[40px] p-8 border border-slate-800 shadow-inner relative">
+            <div className="absolute top-6 left-8 text-[9px] font-black uppercase text-slate-600 tracking-[0.2em]">Global Competency Map</div>
             <ResponsiveContainer width="100%" height="100%">
               <RadarChart cx="50%" cy="50%" outerRadius="80%" data={chartData}>
-                <PolarGrid stroke="#334155" />
-                <PolarAngleAxis dataKey="subject" tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 'bold'}} />
+                <PolarGrid stroke="#1e293b" />
+                <PolarAngleAxis dataKey="subject" tick={{fill: '#475569', fontSize: 10, fontWeight: 'black'}} />
                 <PolarRadiusAxis angle={30} domain={[0, 100]} axisLine={false} tick={false} />
-                <Radar name="Candidate" dataKey="A" stroke="#10b981" fill="#10b981" fillOpacity={0.4} />
+                <Radar name="Candidate" dataKey="A" stroke="#10b981" fill="#10b981" fillOpacity={0.2} />
               </RadarChart>
             </ResponsiveContainer>
           </div>
 
-          <div className="space-y-8">
-            <div>
-              <div className="flex justify-between items-end mb-2">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Technical Precision</span>
-                <span className="text-xs font-black text-emerald-400">{data.technicalAccuracy}%</span>
-              </div>
-              <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
-                <div className="bg-emerald-500 h-full transition-all duration-1000 shadow-[0_0_12px_rgba(16,185,129,0.5)]" style={{ width: `${data.technicalAccuracy}%` }}></div>
-              </div>
-            </div>
-
-            <div>
-              <div className="flex justify-between items-end mb-2">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Communication Impact</span>
-                <span className="text-xs font-black text-blue-400">{data.communicationSkills}%</span>
-              </div>
-              <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
-                <div className="bg-blue-500 h-full transition-all duration-1000 shadow-[0_0_12px_rgba(59,130,246,0.5)]" style={{ width: `${data.communicationSkills}%` }}></div>
-              </div>
-            </div>
-
-            <div>
-              <div className="flex justify-between items-end mb-2">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Vocal Health & Tone</span>
-                <span className="text-xs font-black text-amber-400">{data.toneScore}%</span>
-              </div>
-              <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
-                <div className="bg-amber-500 h-full transition-all duration-1000 shadow-[0_0_12px_rgba(245,158,11,0.5)]" style={{ width: `${data.toneScore}%` }}></div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 pt-4">
-               <div className="bg-slate-800/40 p-4 rounded-2xl border border-slate-700/50">
-                  <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Speech Pace</p>
-                  <p className="text-xl font-black text-white">{data.paceScore}%</p>
+          <div className="space-y-10">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+               <div className="p-6 bg-slate-950 rounded-3xl border border-slate-800">
+                  <div className="flex justify-between items-end mb-3">
+                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Tech Precision</span>
+                    <span className="text-lg font-black text-emerald-400">{data.technicalAccuracy}%</span>
+                  </div>
+                  <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                    <div className="bg-emerald-500 h-full transition-all duration-1000" style={{ width: `${data.technicalAccuracy}%` }}></div>
+                  </div>
                </div>
-               <div className="bg-slate-800/40 p-4 rounded-2xl border border-slate-700/50">
-                  <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Voice Clarity</p>
-                  <p className="text-xl font-black text-white">{data.clarityScore}%</p>
+               <div className="p-6 bg-slate-950 rounded-3xl border border-slate-800">
+                  <div className="flex justify-between items-end mb-3">
+                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Communication</span>
+                    <span className="text-lg font-black text-blue-400">{data.communicationSkills}%</span>
+                  </div>
+                  <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                    <div className="bg-blue-500 h-full transition-all duration-1000" style={{ width: `${data.communicationSkills}%` }}></div>
+                  </div>
                </div>
+               <div className="p-6 bg-slate-950 rounded-3xl border border-slate-800">
+                  <div className="flex justify-between items-end mb-3">
+                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Confidence</span>
+                    <span className="text-lg font-black text-amber-400">{data.confidence}%</span>
+                  </div>
+                  <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                    <div className="bg-amber-500 h-full transition-all duration-1000" style={{ width: `${data.confidence}%` }}></div>
+                  </div>
+               </div>
+               <div className="p-6 bg-slate-950 rounded-3xl border border-slate-800">
+                  <div className="flex justify-between items-end mb-3">
+                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Clarity Index</span>
+                    <span className="text-lg font-black text-white">{data.clarityScore}%</span>
+                  </div>
+                  <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                    <div className="bg-white h-full transition-all duration-1000" style={{ width: `${data.clarityScore}%` }}></div>
+                  </div>
+               </div>
+            </div>
+            
+            <div className="p-6 bg-blue-900/10 border border-blue-500/20 rounded-3xl">
+              <h4 className="text-[10px] font-black uppercase text-blue-400 tracking-widest mb-3">Market Competitive Insight</h4>
+              <p className="text-sm text-slate-400 leading-relaxed font-medium">"{data.marketInsights || "Benchmarked against international industry standards and regional market benchmarks."}"</p>
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <div className="p-8 bg-emerald-900/10 rounded-3xl border border-emerald-900/20 shadow-sm">
-            <h3 className="font-black text-sm uppercase tracking-widest text-emerald-400 mb-6 flex items-center">
-              <i className="fas fa-gem mr-3"></i> Elite Strengths
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-10 mb-10">
+          <div className="p-10 bg-emerald-950/20 rounded-[40px] border border-emerald-900/30">
+            <h3 className="font-black text-xs uppercase tracking-[0.2em] text-emerald-400 mb-8 flex items-center">
+              <i className="fas fa-crown mr-4"></i> Competitive Advantage
             </h3>
-            <ul className="space-y-4 text-sm text-slate-300">
+            <ul className="space-y-5 text-sm text-slate-300">
               {data.strengths.map((s, idx) => (
-                <li key={idx} className="flex items-start space-x-3">
-                  <span className="mt-1.5 w-1.5 h-1.5 bg-emerald-500 rounded-full flex-shrink-0"></span>
-                  <span className="leading-relaxed">{s}</span>
+                <li key={idx} className="flex items-start space-x-4">
+                  <div className="mt-1.5 w-2 h-2 bg-emerald-500 rounded-full flex-shrink-0"></div>
+                  <span className="leading-relaxed font-medium">{s}</span>
                 </li>
               ))}
             </ul>
           </div>
-          <div className="p-8 bg-red-900/10 rounded-3xl border border-red-900/20 shadow-sm">
-            <h3 className="font-black text-sm uppercase tracking-widest text-red-400 mb-6 flex items-center">
-              <i className="fas fa-crosshairs mr-3"></i> Growth Targets
+          <div className="p-10 bg-red-950/20 rounded-[40px] border border-red-900/30">
+            <h3 className="font-black text-xs uppercase tracking-[0.2em] text-red-400 mb-8 flex items-center">
+              <i className="fas fa-bullseye mr-4"></i> Critical Growth Areas
             </h3>
-            <ul className="space-y-4 text-sm text-slate-300">
+            <ul className="space-y-5 text-sm text-slate-300">
               {data.weaknesses.map((w, idx) => (
-                <li key={idx} className="flex items-start space-x-3">
-                  <span className="mt-1.5 w-1.5 h-1.5 bg-red-500 rounded-full flex-shrink-0"></span>
-                  <span className="leading-relaxed">{w}</span>
+                <li key={idx} className="flex items-start space-x-4">
+                  <div className="mt-1.5 w-2 h-2 bg-red-500 rounded-full flex-shrink-0"></div>
+                  <span className="leading-relaxed font-medium">{w}</span>
                 </li>
               ))}
             </ul>
           </div>
         </div>
 
-        <div className="p-8 bg-blue-900/10 rounded-3xl border border-blue-900/20 mb-10">
-          <h3 className="font-black text-sm uppercase tracking-widest text-blue-400 mb-6 flex items-center">
-            <i className="fas fa-magic mr-3"></i> Tactical Optimization
+        <div className="p-10 bg-slate-950 rounded-[40px] border border-slate-800 mb-12">
+          <h3 className="font-black text-xs uppercase tracking-[0.2em] text-slate-500 mb-8 flex items-center">
+            <i className="fas fa-magic mr-4"></i> High-Impact Recommendations
           </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
             {data.suggestions.map((s, idx) => (
-              <div key={idx} className="bg-slate-800/60 p-5 rounded-2xl shadow-sm border border-slate-700/50 flex flex-col space-y-3">
-                <div className="flex items-start space-x-3">
-                  <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0">
-                    <i className="fas fa-lightbulb text-[10px] text-blue-400"></i>
+              <div key={idx} className="bg-slate-900 p-6 rounded-3xl border border-slate-800 flex flex-col space-y-4 shadow-sm">
+                <div className="flex items-start space-x-4">
+                  <div className="w-8 h-8 rounded-2xl bg-blue-600/20 flex items-center justify-center flex-shrink-0">
+                    <i className="fas fa-bolt text-blue-400 text-xs"></i>
                   </div>
                   <p className="text-xs font-bold text-slate-100 leading-tight">"{s.text}"</p>
                 </div>
-                <div className="pt-2 border-t border-slate-700/30">
-                  <p className="text-[10px] text-slate-400 leading-relaxed">
-                    <span className="font-bold text-blue-500/80 uppercase mr-1">Rationale:</span>
+                <div className="pt-4 border-t border-slate-800">
+                  <p className="text-[10px] text-slate-500 leading-relaxed font-medium">
+                    <span className="font-black text-blue-500 uppercase mr-1">Context:</span>
                     {s.rationale}
                   </p>
                 </div>
@@ -147,19 +153,19 @@ const FeedbackReport: React.FC<{ data: FeedbackData, onReset: () => void }> = ({
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
+        <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-6">
           <button 
             onClick={onReset}
-            className="flex-1 py-5 bg-slate-800 text-slate-200 rounded-2xl font-bold hover:bg-slate-700 transition-all border border-slate-700 uppercase text-xs tracking-widest"
+            className="flex-1 py-6 bg-slate-800 text-slate-200 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-slate-700 transition-all border border-slate-700"
           >
-            Dashboard
+            Return to HQ
           </button>
           <button 
             onClick={() => window.print()}
-            className="flex-1 py-5 bg-emerald-600 text-white rounded-2xl font-bold hover:bg-emerald-500 transition-all flex items-center justify-center space-x-3 shadow-xl shadow-emerald-900/30 uppercase text-xs tracking-widest"
+            className="flex-1 py-6 bg-emerald-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-emerald-500 transition-all flex items-center justify-center space-x-4 shadow-2xl shadow-emerald-900/40"
           >
             <i className="fas fa-file-pdf"></i>
-            <span>Download Dossier</span>
+            <span>Export Full Dossier</span>
           </button>
         </div>
       </div>

@@ -2,10 +2,11 @@
 import { GoogleGenAI, Type, GenerateContentResponse, Modality } from "@google/genai";
 import { InterviewState, FeedbackData, Difficulty } from "../types";
 
-export const analyzeJobContext = async (state: InterviewState): Promise<string> => {
+export const analyzeJobContext = async (state: InterviewState): Promise<any> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+  
   const prompt = `
-    As a world-class Global Talent Acquisition Specialist, analyze the following data:
+    As a world-class Global Talent Acquisition Specialist specializing in the African tech and professional market, analyze the following data for a candidate applying to a role in ${state.region}:
     
     JOB ROLE: ${state.jobRole}
     INDUSTRY/DOMAIN: ${state.industry}
@@ -13,18 +14,64 @@ export const analyzeJobContext = async (state: InterviewState): Promise<string> 
     JOB DESCRIPTION: ${state.jobDescription}
     CANDIDATE CV: ${state.cvText}
     
-    Identify the top 3 gaps the candidate has for this specific role and 3 areas of strength. 
-    Summarize in a brief paragraph how they should position themselves according to global industry standards for the ${state.industry} domain.
-    Factor in international professional culture and standard market nuances for a role in ${state.jobLocation}.
-    Keep the tone encouraging, high-level, and professional.
+    Provide a detailed analysis including:
+    1. A list of skill gaps (matched, missing, or partial).
+    2. 3 areas of major strength.
+    3. Specific advice for interviewing in the ${state.region} market vs Global standards.
+    4. Current market salary expectations or hiring trends if possible.
+
+    Return the response in JSON format according to this schema:
+    {
+      "summary": "string",
+      "strengths": ["string"],
+      "skillGaps": [
+        { "skill": "string", "status": "matched" | "missing" | "partial", "advice": "string" }
+      ],
+      "marketInsights": "string"
+    }
   `;
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
-    contents: prompt,
-  });
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: prompt,
+      config: {
+        tools: [{ googleSearch: {} }],
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            summary: { type: Type.STRING },
+            strengths: { type: Type.ARRAY, items: { type: Type.STRING } },
+            skillGaps: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  skill: { type: Type.STRING },
+                  status: { type: Type.STRING, enum: ["matched", "missing", "partial"] },
+                  advice: { type: Type.STRING }
+                },
+                required: ["skill", "status", "advice"]
+              }
+            },
+            marketInsights: { type: Type.STRING }
+          },
+          required: ["summary", "strengths", "skillGaps", "marketInsights"]
+        }
+      }
+    });
 
-  return response.text || "Analysis failed. Please try again.";
+    return JSON.parse(response.text || "{}");
+  } catch (error) {
+    console.error("Analysis failed:", error);
+    return {
+      summary: "Analysis failed, but you're ready to start!",
+      strengths: ["Resilience", "Global Outlook"],
+      skillGaps: [],
+      marketInsights: "Local market data currently unavailable."
+    };
+  }
 };
 
 export const generateNextQuestion = async (
@@ -39,26 +86,24 @@ export const generateNextQuestion = async (
     ? "Ask professional standard competency and experience-based questions." 
     : "Ask straightforward introductory, interest, and core skills-based questions.";
 
-  const randomizationPrompt = state.isRandomized 
-    ? `Vary the topics unexpectedly to test real-world adaptability across different areas of the ${state.industry} domain.` 
-    : "Follow a logical progression through technical skills, domain expertise, and then behavioral/cultural fit.";
+  const regionPrompt = `Incorporate nuances of the ${state.region} market, mentioning relevant local challenges or opportunities where appropriate for ${state.industry}.`;
 
   const prompt = isFirst 
     ? `Start the professional interview for the role of ${state.jobRole} in the ${state.industry} industry, located in ${state.jobLocation}. 
-       ${difficultyPrompt} ${randomizationPrompt} 
-       Tailor your questioning to international standards and professional expectations for this global role.
+       ${difficultyPrompt} ${regionPrompt}
+       Tailor your questioning to international standards and professional expectations.
        Reference parts of their CV: ${state.cvText.substring(0, 500)}... if relevant.`
     : `Given the interview history so far: ${JSON.stringify(history.slice(-4))}. 
-       Ask the next relevant follow-up or a new question for the ${state.jobRole} (${state.industry}) position. 
-       Maintain international standard professional rigor.
+       Ask the next relevant follow-up or a new question for the ${state.jobRole} position. 
+       Maintain high professional rigor.
        ${difficultyPrompt}`;
 
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
     contents: prompt,
     config: {
-      systemInstruction: `You are a Global Talent Acquisition Leader. 
-      You are interviewing a high-potential candidate. You speak with clarity, authority, and professional warmth. 
+      systemInstruction: `You are a Global Talent Acquisition Leader with deep expertise in the African professional landscape. 
+      You are interviewing a high-potential candidate for a role in ${state.region}. You speak with clarity, authority, and professional warmth. 
       Incorporate international professional standards and industry-specific terminology for ${state.industry}.
       Do not provide feedback yet, only ask the next question.`
     }
@@ -78,13 +123,14 @@ export const generateDetailedFeedback = async (
   Role: ${state.jobRole}
   Industry: ${state.industry}
   Location: ${state.jobLocation}
+  Region: ${state.region}
   Difficulty: ${state.difficulty}
   
   TRANSCRIPT:
   ${JSON.stringify(history)}
   
   Evaluate against global industry benchmarks, professional techniques (like STAR for behavioral answers), and technical accuracy for the ${state.industry} domain.
-  Also evaluate the likely Vocal Tone, Pace, and Clarity based on the flow and structure of the candidate's responses.
+  Also factor in the ${state.region} market context.
 
   Return exactly this JSON structure:
   {
@@ -92,14 +138,16 @@ export const generateDetailedFeedback = async (
     "strengths": string[],
     "weaknesses": string[],
     "suggestions": [
-      { "text": "Actionable advice", "rationale": "Brief explanation of why this matters for this role/industry" }
+      { "text": "Actionable advice", "rationale": "Brief explanation" }
     ],
-    "technicalAccuracy": number (0-100),
-    "communicationSkills": number (0-100),
-    "confidence": number (0-100),
-    "toneScore": number (0-100),
-    "paceScore": number (0-100),
-    "clarityScore": number (0-100)
+    "skillGaps": [],
+    "marketInsights": "string",
+    "technicalAccuracy": number,
+    "communicationSkills": number,
+    "confidence": number,
+    "toneScore": number,
+    "paceScore": number,
+    "clarityScore": number
   }`;
 
   const response = await ai.models.generateContent({
@@ -124,6 +172,7 @@ export const generateDetailedFeedback = async (
               required: ["text", "rationale"]
             } 
           },
+          marketInsights: { type: Type.STRING },
           technicalAccuracy: { type: Type.NUMBER },
           communicationSkills: { type: Type.NUMBER },
           confidence: { type: Type.NUMBER },
@@ -139,7 +188,8 @@ export const generateDetailedFeedback = async (
   try {
     const text = response.text;
     if (!text) throw new Error("Empty response");
-    return JSON.parse(text);
+    const parsed = JSON.parse(text);
+    return { ...parsed, skillGaps: [] }; // Fallback for skillGaps if missing from prompt logic
   } catch (e) {
     throw new Error("Failed to parse feedback.");
   }
@@ -151,7 +201,7 @@ export const createChatSession = () => {
   return ai.chats.create({
     model: 'gemini-3-pro-preview',
     config: {
-      systemInstruction: 'You are an AI Global Career Consultant. You help professionals worldwide with career strategy, CV optimization, and international interview preparation. Be highly professional, globally aware, and concise.',
+      systemInstruction: 'You are an AI Global Career Consultant with specific expertise in the African and emerging markets. You help professionals with career strategy, CV optimization, and international interview preparation. Be highly professional, globally aware, and concise.',
     }
   });
 };

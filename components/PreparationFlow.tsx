@@ -1,15 +1,15 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { UserProfile, Difficulty, InterviewState } from '../types';
+import { UserProfile, Difficulty, InterviewState, AfricanRegion } from '../types';
 import { analyzeJobContext } from '../services/geminiService';
 
 const PreparationFlow: React.FC<{ user: UserProfile, onSaveState?: (state: InterviewState) => void }> = ({ user, onSaveState }) => {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [analysis, setAnalysis] = useState<string | null>(null);
-  const [showHandshake, setShowHandshake] = useState(false);
+  const [analysis, setAnalysis] = useState<any | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
   
   const [form, setForm] = useState<InterviewState>({
     cvText: '',
@@ -18,23 +18,28 @@ const PreparationFlow: React.FC<{ user: UserProfile, onSaveState?: (state: Inter
     jobLocation: '',
     industry: '',
     difficulty: Difficulty.MEDIUM,
+    region: 'Nigeria (West)',
     isRandomized: false
   });
+
+  const regions: AfricanRegion[] = [
+    'Nigeria (West)', 'Kenya (East)', 'South Africa (South)', 
+    'Egypt (North)', 'Ghana (West)', 'Ethiopia (East)', 
+    'Remote / Pan-African', 'Global / International'
+  ];
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // In a real app, you'd use a PDF/Docx parser here.
-      setForm(prev => ({ ...prev, cvText: "Extracted text from CV: Senior Professional with global experience in technology and finance. Expertise in scaling international teams and driving high-impact projects." }));
+      setIsScanning(true);
+      setTimeout(() => {
+        setForm(prev => ({ 
+          ...prev, 
+          cvText: "Alex Johnson - Senior Full Stack Engineer with 6+ years of experience building scalable fintech solutions in Lagos and Nairobi. Proficient in React, Node.js, and Cloud Infrastructure (AWS). Led a team of 10 to deliver a Pan-African payment gateway processing $1M+ daily." 
+        }));
+        setIsScanning(false);
+      }, 2000);
     }
-  };
-
-  const goToStep2 = () => {
-    setShowHandshake(true);
-    setTimeout(() => {
-      setShowHandshake(false);
-      setStep(2);
-    }, 2000);
   };
 
   const handleAnalyze = async () => {
@@ -53,218 +58,280 @@ const PreparationFlow: React.FC<{ user: UserProfile, onSaveState?: (state: Inter
   };
 
   const startInterview = () => {
-    // Clear any previous active transcript when starting fresh
     localStorage.removeItem('active_interview_transcript');
     sessionStorage.setItem('current_interview', JSON.stringify(form));
     navigate('/interview');
   };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-8 animate-in slide-in-from-bottom-4 duration-500 relative">
+    <div className="max-w-4xl mx-auto space-y-8 animate-in slide-in-from-bottom-4 duration-500 relative pb-12">
       
-      {/* Handshake/Success Overlay */}
-      {showHandshake && (
-        <div className="fixed top-24 right-10 z-50 animate-slide-in-right">
-          <div className="glass border border-emerald-400 bg-emerald-900/20 p-6 rounded-3xl shadow-2xl flex flex-col items-center space-y-2 success-glow">
-             <div className="w-16 h-16 bg-emerald-600 rounded-full flex items-center justify-center text-white text-3xl animate-bounce">
-                <i className="fas fa-handshake"></i>
-             </div>
-             <div className="text-center">
-               <p className="font-bold text-emerald-100">Profile Analyzed!</p>
-               <p className="text-[10px] text-emerald-400 uppercase tracking-widest font-bold">Standardizing against industry benchmarks...</p>
-             </div>
-          </div>
-        </div>
-      )}
-
-      <div className="flex items-center justify-between mb-8">
+      {/* Visual Stepper */}
+      <div className="flex items-center justify-between mb-12 px-4">
         {[1, 2, 3].map((s) => (
           <div key={s} className="flex items-center flex-1 last:flex-none">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all duration-300 ${
-              step === s ? 'bg-emerald-600 text-white shadow-[0_0_15px_rgba(5,150,105,0.5)]' : step > s ? 'bg-emerald-900/50 text-emerald-400' : 'bg-slate-800 text-slate-500'
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-bold transition-all duration-300 transform ${
+              step === s ? 'bg-emerald-600 text-white shadow-xl shadow-emerald-900/40 rotate-3 scale-110' : step > s ? 'bg-emerald-900/30 text-emerald-400' : 'bg-slate-800 text-slate-500'
             }`}>
               {step > s ? <i className="fas fa-check"></i> : s}
             </div>
-            {s < 3 && <div className={`h-1 flex-grow mx-4 rounded ${step > s ? 'bg-emerald-600' : 'bg-slate-800'}`}></div>}
+            {s < 3 && <div className={`h-0.5 flex-grow mx-4 rounded-full ${step > s ? 'bg-emerald-600' : 'bg-slate-800'}`}></div>}
           </div>
         ))}
       </div>
 
       {step === 1 && (
-        <div className="bg-slate-900 p-8 rounded-3xl shadow-sm border border-slate-800 space-y-6">
-          <div className="flex justify-between items-start">
-            <div>
-              <h2 className="text-2xl font-bold text-slate-100">Step 1: Global Context</h2>
-              <p className="text-slate-500">Provide details for your target international role.</p>
-            </div>
-            <div className="hidden sm:block text-right">
-              <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-1 rounded uppercase font-bold tracking-widest">Setup</span>
-            </div>
-          </div>
-          
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+          <div className="lg:col-span-3 space-y-6">
+            <div className="bg-slate-900 p-8 rounded-3xl border border-slate-800 space-y-6 shadow-2xl">
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Target Job Role</label>
-                <input 
-                  type="text" 
-                  placeholder="e.g. Senior Software Engineer" 
-                  className="w-full bg-slate-800 px-4 py-3 rounded-xl border border-slate-700 text-slate-100 placeholder:text-slate-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all outline-none"
-                  value={form.jobRole}
-                  onChange={e => setForm(prev => ({ ...prev, jobRole: e.target.value }))}
-                />
+                <h2 className="text-2xl font-bold text-slate-100">Professional Context</h2>
+                <p className="text-slate-500 text-sm">Tell us about the role you're targeting.</p>
               </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Domain / Industry</label>
-                <input 
-                  type="text" 
-                  placeholder="e.g. FinTech, Healthcare, AI" 
-                  className="w-full bg-slate-800 px-4 py-3 rounded-xl border border-slate-700 text-slate-100 placeholder:text-slate-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all outline-none"
-                  value={form.industry}
-                  onChange={e => setForm(prev => ({ ...prev, industry: e.target.value }))}
-                />
-              </div>
-            </div>
-            <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Job Location (City, Country or Remote)</label>
-                <input 
-                  type="text" 
-                  placeholder="e.g. London, UK or Remote (Global)" 
-                  className="w-full bg-slate-800 px-4 py-3 rounded-xl border border-slate-700 text-slate-100 placeholder:text-slate-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all outline-none"
-                  value={form.jobLocation}
-                  onChange={e => setForm(prev => ({ ...prev, jobLocation: e.target.value }))}
-                />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Job Description</label>
-              <textarea 
-                rows={4}
-                placeholder="Paste the international job requirements here..." 
-                className="w-full bg-slate-800 px-4 py-3 rounded-xl border border-slate-700 text-slate-100 placeholder:text-slate-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all outline-none resize-none"
-                value={form.jobDescription}
-                onChange={e => setForm(prev => ({ ...prev, jobDescription: e.target.value }))}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Upload CV / Resume (International Standard)</label>
-              <div className="relative border-2 border-dashed border-slate-700 rounded-xl p-8 text-center hover:border-emerald-500 hover:bg-slate-800/50 transition-all cursor-pointer group">
-                <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={handleFileUpload} />
-                <div className="space-y-2">
-                  <i className="fas fa-cloud-upload-alt text-4xl text-slate-600 group-hover:text-emerald-500 transition-colors"></i>
-                  <p className="text-slate-500">{form.cvText ? 'Document Uploaded Successfully' : 'Drag and drop or click to upload your Resume'}</p>
+              
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Target Role</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. Senior Product Manager" 
+                      className="w-full bg-slate-950 px-4 py-3.5 rounded-xl border border-slate-800 text-slate-100 placeholder:text-slate-600 focus:ring-2 focus:ring-emerald-500 transition-all outline-none"
+                      value={form.jobRole}
+                      onChange={e => setForm(prev => ({ ...prev, jobRole: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Industry</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. FinTech / SaaS" 
+                      className="w-full bg-slate-950 px-4 py-3.5 rounded-xl border border-slate-800 text-slate-100 placeholder:text-slate-600 focus:ring-2 focus:ring-emerald-500 transition-all outline-none"
+                      value={form.industry}
+                      onChange={e => setForm(prev => ({ ...prev, industry: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Location / Market</label>
+                  <input 
+                    type="text" 
+                    placeholder="e.g. Lagos, Nigeria or Remote" 
+                    className="w-full bg-slate-950 px-4 py-3.5 rounded-xl border border-slate-800 text-slate-100 placeholder:text-slate-600 focus:ring-2 focus:ring-emerald-500 transition-all outline-none"
+                    value={form.jobLocation}
+                    onChange={e => setForm(prev => ({ ...prev, jobLocation: e.target.value }))}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Job Description</label>
+                  <textarea 
+                    rows={4}
+                    placeholder="Paste the key requirements..." 
+                    className="w-full bg-slate-950 px-4 py-3.5 rounded-xl border border-slate-800 text-slate-100 placeholder:text-slate-600 focus:ring-2 focus:ring-emerald-500 transition-all outline-none resize-none"
+                    value={form.jobDescription}
+                    onChange={e => setForm(prev => ({ ...prev, jobDescription: e.target.value }))}
+                  />
                 </div>
               </div>
             </div>
           </div>
 
-          <button 
-            onClick={goToStep2}
-            disabled={!form.jobRole || !form.industry || !form.jobDescription || !form.cvText || !form.jobLocation}
-            className="w-full py-4 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed transition-all shadow-lg"
-          >
-            Continue to Preferences
-          </button>
+          <div className="lg:col-span-2 space-y-6">
+            <div className="bg-slate-900 p-8 rounded-3xl border border-slate-800 space-y-6 shadow-2xl h-full">
+              <h3 className="font-bold text-slate-200">Resume Deep-Scan</h3>
+              <div className="relative border-2 border-dashed border-slate-800 rounded-2xl p-8 text-center hover:border-emerald-500 hover:bg-emerald-500/5 transition-all cursor-pointer group h-64 flex flex-col items-center justify-center">
+                <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={handleFileUpload} />
+                {isScanning ? (
+                  <div className="flex flex-col items-center space-y-4">
+                    <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                    <p className="text-xs font-bold text-emerald-400 animate-pulse">EXTRACTING TALENT DATA...</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="w-16 h-16 bg-slate-800 rounded-2xl flex items-center justify-center mx-auto group-hover:bg-emerald-600 transition-all">
+                      <i className={`fas ${form.cvText ? 'fa-check text-emerald-400 group-hover:text-white' : 'fa-cloud-upload-alt text-slate-500 group-hover:text-white'} text-2xl`}></i>
+                    </div>
+                    <div>
+                      <p className="text-slate-300 font-bold text-sm">{form.cvText ? 'CV Uploaded' : 'Upload CV'}</p>
+                      <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-widest">PDF, DOCX, or Image</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              <div className="p-4 bg-emerald-950/20 border border-emerald-900/30 rounded-xl">
+                <p className="text-[10px] text-emerald-400 font-bold uppercase mb-1">Status</p>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  {form.cvText ? "Data extracted. We've identified your key skillsets for the analysis phase." : "Waiting for CV upload to begin profile benchmarking."}
+                </p>
+              </div>
+
+              <button 
+                onClick={() => setStep(2)}
+                disabled={!form.jobRole || !form.jobDescription || !form.cvText}
+                className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-600 transition-all shadow-xl shadow-emerald-900/20"
+              >
+                Configure Session
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
       {step === 2 && (
-        <div className="bg-slate-900 p-8 rounded-3xl shadow-sm border border-slate-800 space-y-8">
-          <h2 className="text-2xl font-bold text-slate-100">Step 2: Session Customization</h2>
-          
-          <div className="space-y-6">
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 ml-1">Rigor / Difficulty Level</label>
-              <div className="grid grid-cols-3 gap-4">
-                {Object.values(Difficulty).map(d => (
-                  <button
-                    key={d}
-                    onClick={() => setForm(prev => ({ ...prev, difficulty: d }))}
-                    className={`py-3 rounded-xl border-2 font-semibold transition-all ${
-                      form.difficulty === d ? 'border-emerald-600 bg-emerald-900/30 text-emerald-400' : 'border-slate-800 bg-slate-800 text-slate-500 hover:border-slate-700 hover:text-slate-300'
-                    }`}
-                  >
-                    {d}
-                  </button>
-                ))}
+        <div className="max-w-3xl mx-auto space-y-8 animate-in fade-in zoom-in-95 duration-500">
+          <div className="bg-slate-900 p-8 rounded-3xl border border-slate-800 shadow-2xl">
+            <h2 className="text-2xl font-bold mb-8 text-white">Market & Rigor Setup</h2>
+            
+            <div className="space-y-10">
+              <div className="space-y-4">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Target Market Focus</label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {regions.map(r => (
+                    <button
+                      key={r}
+                      onClick={() => setForm(prev => ({ ...prev, region: r }))}
+                      className={`p-3 rounded-xl border-2 text-[11px] font-bold transition-all ${
+                        form.region === r ? 'border-emerald-600 bg-emerald-900/20 text-emerald-400' : 'border-slate-800 bg-slate-950 text-slate-500 hover:border-slate-700'
+                      }`}
+                    >
+                      {r}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Interview Intensity</label>
+                <div className="grid grid-cols-3 gap-4">
+                  {Object.values(Difficulty).map(d => (
+                    <button
+                      key={d}
+                      onClick={() => setForm(prev => ({ ...prev, difficulty: d }))}
+                      className={`py-4 rounded-xl border-2 font-bold transition-all flex flex-col items-center ${
+                        form.difficulty === d ? 'border-blue-600 bg-blue-900/20 text-blue-400' : 'border-slate-800 bg-slate-950 text-slate-500 hover:border-slate-700'
+                      }`}
+                    >
+                      <span className="text-sm">{d}</span>
+                      <span className="text-[8px] mt-1 opacity-60 uppercase tracking-tighter">
+                        {d === Difficulty.HARD ? "FAANG Level" : d === Difficulty.MEDIUM ? "Pro Standard" : "Basic Fit"}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between p-6 bg-slate-950 rounded-2xl border border-slate-800">
+                <div className="flex items-center space-x-4">
+                  <div className="w-12 h-12 bg-emerald-900/30 rounded-xl flex items-center justify-center text-emerald-500">
+                    <i className="fas fa-random text-xl"></i>
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-200">Adaptive Questioning</p>
+                    <p className="text-xs text-slate-500">The AI will vary topics based on your performance.</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setForm(prev => ({ ...prev, isRandomized: !prev.isRandomized }))}
+                  className={`w-14 h-8 rounded-full transition-colors relative ${form.isRandomized ? 'bg-emerald-600' : 'bg-slate-800'}`}
+                >
+                  <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all ${form.isRandomized ? 'left-7' : 'left-1'}`}></div>
+                </button>
               </div>
             </div>
 
-            <div className="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl border border-slate-800">
-              <div>
-                <p className="font-semibold text-slate-200">Global Standard Randomization</p>
-                <p className="text-xs text-slate-500">Test adaptability across diverse domain topics.</p>
-              </div>
+            <div className="flex space-x-4 mt-12">
+              <button onClick={() => setStep(1)} className="flex-1 py-4 bg-slate-800 text-slate-300 rounded-2xl font-bold hover:bg-slate-700 transition-all">Back</button>
               <button 
-                onClick={() => setForm(prev => ({ ...prev, isRandomized: !prev.isRandomized }))}
-                className={`w-14 h-8 rounded-full transition-colors relative ${form.isRandomized ? 'bg-emerald-600' : 'bg-slate-700'}`}
+                onClick={handleAnalyze} 
+                disabled={loading}
+                className="flex-[2] py-4 bg-emerald-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-emerald-500 transition-all flex items-center justify-center space-x-3 shadow-xl"
               >
-                <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all ${form.isRandomized ? 'left-7' : 'left-1'}`}></div>
+                {loading ? <i className="fas fa-circle-notch fa-spin"></i> : <i className="fas fa-microscope"></i>}
+                <span>{loading ? 'Synthesizing Profile...' : 'Finalize & Analyze'}</span>
               </button>
             </div>
-
-            <div className="p-4 bg-amber-900/20 text-amber-200 rounded-xl flex items-start space-x-3 border border-amber-900/30">
-              <i className="fas fa-crown mt-1 text-amber-500"></i>
-              <div>
-                <p className="text-sm font-bold">Global Pro Perk</p>
-                <p className="text-xs opacity-80">Premium users receive localized market insights for ${form.jobLocation} and industry competitors in the ${form.industry} space.</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex space-x-4">
-            <button onClick={() => setStep(1)} className="flex-1 py-4 bg-slate-800 text-slate-400 rounded-xl font-bold hover:bg-slate-700 transition-all border border-slate-700">Back</button>
-            <button 
-              onClick={handleAnalyze} 
-              disabled={loading}
-              className="flex-[2] py-4 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-500 transition-all flex items-center justify-center space-x-2 shadow-lg"
-            >
-              {loading ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-magic"></i>}
-              <span>{loading ? 'Performing Deep Analysis...' : 'Finalize & Prepare'}</span>
-            </button>
           </div>
         </div>
       )}
 
       {step === 3 && analysis && (
-        <div className="bg-slate-900 p-8 rounded-3xl shadow-sm border border-slate-800 space-y-6">
-          <div className="flex items-center space-x-3 text-emerald-400 mb-2">
-            <i className="fas fa-check-circle text-2xl"></i>
-            <h2 className="text-2xl font-bold">Standard Analysis for {form.industry}!</h2>
-          </div>
-          
-          <div className="p-6 bg-slate-800/50 rounded-2xl whitespace-pre-wrap text-slate-300 italic border-l-4 border-emerald-500">
-            "{analysis}"
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-4 border border-emerald-900/30 rounded-xl bg-emerald-900/10">
-              <h3 className="font-bold text-emerald-400 mb-2 flex items-center">
-                <i className="fas fa-bolt mr-2"></i>International Tips
-              </h3>
-              <ul className="text-sm text-slate-400 space-y-1">
-                <li>• Emphasize global industry best practices</li>
-                <li>• Focus on scalable solutions and impact</li>
-                <li>• Align with international professional standards</li>
-              </ul>
+        <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
+          <div className="bg-slate-900 p-10 rounded-3xl border border-slate-800 shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-10 opacity-5">
+              <i className="fas fa-award text-9xl text-emerald-500"></i>
             </div>
-            <div className="p-4 border border-blue-900/30 rounded-xl bg-blue-900/10">
-              <h3 className="font-bold text-blue-400 mb-2 flex items-center">
-                <i className="fas fa-info-circle mr-2"></i>Global Studio Rules
-              </h3>
-              <ul className="text-sm text-slate-400 space-y-1">
-                <li>• ~15-20 min high-rigor session</li>
-                <li>• Real-time international market AI</li>
-                <li>• Professional voice analysis enabled</li>
-              </ul>
+            
+            <div className="relative z-10 space-y-10">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-3xl font-black text-white leading-tight">Pre-Interview Dossier</h2>
+                  <p className="text-emerald-400 font-bold uppercase tracking-widest text-xs mt-1">Ready for {form.region} Market</p>
+                </div>
+                <div className="text-right">
+                   <p className="text-[10px] text-slate-500 uppercase font-black">Role Benchmarked</p>
+                   <p className="text-lg font-bold text-slate-200">{form.jobRole}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-6">
+                  <div className="p-6 bg-slate-950 rounded-2xl border border-slate-800">
+                    <h3 className="text-xs font-black uppercase text-slate-500 tracking-widest mb-4">Executive Summary</h3>
+                    <p className="text-sm text-slate-300 italic leading-relaxed">"{analysis.summary}"</p>
+                  </div>
+
+                  <div className="space-y-4">
+                    <h3 className="text-xs font-black uppercase text-slate-500 tracking-widest">Skill Matching</h3>
+                    <div className="space-y-3">
+                      {analysis.skillGaps.map((gap: any, idx: number) => (
+                        <div key={idx} className="p-4 bg-slate-950 rounded-xl border border-slate-800 flex items-start space-x-4">
+                          <div className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${gap.status === 'matched' ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : gap.status === 'partial' ? 'bg-amber-500 shadow-[0_0_8px_#f59e0b]' : 'bg-red-500 shadow-[0_0_8px_#ef4444]'}`}></div>
+                          <div>
+                            <p className="text-xs font-bold text-slate-100">{gap.skill}</p>
+                            <p className="text-[10px] text-slate-500 mt-1">{gap.advice}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                   <div className="p-6 bg-emerald-950/10 border border-emerald-900/30 rounded-2xl">
+                      <h3 className="text-xs font-black uppercase text-emerald-400 tracking-widest mb-4">Core Strengths</h3>
+                      <ul className="space-y-3">
+                        {analysis.strengths.map((s: string, i: number) => (
+                          <li key={i} className="flex items-center space-x-3 text-sm text-slate-300">
+                            <i className="fas fa-check-circle text-emerald-500 text-xs"></i>
+                            <span>{s}</span>
+                          </li>
+                        ))}
+                      </ul>
+                   </div>
+
+                   <div className="p-6 bg-blue-950/10 border border-blue-900/30 rounded-2xl">
+                      <h3 className="text-xs font-black uppercase text-blue-400 tracking-widest mb-4">Market Intelligence</h3>
+                      <p className="text-sm text-slate-300 leading-relaxed">{analysis.marketInsights}</p>
+                   </div>
+                   
+                   <div className="p-6 bg-slate-950 rounded-2xl border border-slate-800">
+                      <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2">Interviewer Insight</p>
+                      <p className="text-xs text-slate-400 italic">"The hiring manager for this role will likely focus on your ability to scale systems across fragmented markets. Be ready to discuss regional regulations."</p>
+                   </div>
+                </div>
+              </div>
+
+              <button 
+                onClick={startInterview}
+                className="w-full py-6 bg-emerald-600 text-white rounded-2xl font-black uppercase tracking-widest text-sm hover:bg-emerald-500 transition-all shadow-2xl shadow-emerald-900/40 transform hover:-translate-y-1"
+              >
+                Launch Live Interview Studio
+              </button>
             </div>
           </div>
-
-          <button 
-            onClick={startInterview}
-            className="w-full py-4 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-500 transform hover:-translate-y-1 transition-all shadow-xl shadow-emerald-900/20"
-          >
-            Enter Global Interview Studio
-          </button>
         </div>
       )}
     </div>

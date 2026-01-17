@@ -5,6 +5,16 @@ export enum Difficulty {
   HARD = 'Hard'
 }
 
+export type AfricanRegion = 
+  | 'Nigeria (West)' 
+  | 'Kenya (East)' 
+  | 'South Africa (South)' 
+  | 'Egypt (North)' 
+  | 'Ghana (West)' 
+  | 'Ethiopia (East)' 
+  | 'Remote / Pan-African'
+  | 'Global / International';
+
 export type SubscriptionTier = 'Free' | 'Weekly' | 'Monthly' | 'Yearly';
 
 export interface InterviewResult {
@@ -34,6 +44,7 @@ export interface InterviewState {
   jobLocation: string;
   industry: string;
   difficulty: Difficulty;
+  region: AfricanRegion;
   isRandomized: boolean;
 }
 
@@ -42,11 +53,19 @@ export interface Suggestion {
   rationale: string;
 }
 
+export interface SkillGap {
+  skill: string;
+  status: 'matched' | 'missing' | 'partial';
+  advice: string;
+}
+
 export interface FeedbackData {
   score: number;
   strengths: string[];
   weaknesses: string[];
   suggestions: Suggestion[];
+  skillGaps: SkillGap[];
+  marketInsights: string;
   technicalAccuracy: number;
   communicationSkills: number;
   confidence: number;
