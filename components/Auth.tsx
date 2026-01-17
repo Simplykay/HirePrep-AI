@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile } from '../types';
 import Logo from './Logo';
 
@@ -14,25 +14,41 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const googleInitRef = useRef(false);
 
   useEffect(() => {
-    // Initialize Google Sign-In if available
-    if ((window as any).google) {
-      (window as any).google.accounts.id.initialize({
-        client_id: "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com",
-        callback: handleGoogleCredentialResponse
-      });
-      (window as any).google.accounts.id.renderButton(
-        document.getElementById("googleSignInButton"),
-        { 
-          theme: "filled_black", 
-          size: "large", 
-          width: 400,
-          text: "continue_with" 
+    const initGoogle = () => {
+      if ((window as any).google && (window as any).google.accounts && !googleInitRef.current) {
+        (window as any).google.accounts.id.initialize({
+          client_id: "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com",
+          callback: handleGoogleCredentialResponse
+        });
+        const buttonDiv = document.getElementById("googleSignInButton");
+        if (buttonDiv) {
+          (window as any).google.accounts.id.renderButton(
+            buttonDiv,
+            { 
+              theme: "filled_black", 
+              size: "large", 
+              width: buttonDiv.offsetWidth || 350,
+              text: "continue_with" 
+            }
+          );
+          googleInitRef.current = true;
         }
-      );
-    }
-  }, [onLogin]);
+      }
+    };
+
+    // Attempt immediately and then periodically until successful or timeout
+    initGoogle();
+    const interval = setInterval(initGoogle, 1000);
+    const timeout = setTimeout(() => clearInterval(interval), 10000);
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
+  }, []);
 
   const handleGoogleCredentialResponse = (response: any) => {
     setLoading(true);
@@ -55,13 +71,10 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
     setLoading(true);
     setError('');
 
-    // Fetch registered users from localStorage
     const storedUsersRaw = localStorage.getItem('hireprep_registered_users');
     const users = storedUsersRaw ? JSON.parse(storedUsersRaw) : [];
 
     if (isLogin) {
-      // Login Logic
-      // Hardcoded Admin for ease of testing
       if (email === 'admin@gmail.com' && password === 'adminpass') {
         setTimeout(() => {
           onLogin({
@@ -89,12 +102,11 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
         }, 1000);
       } else {
         setTimeout(() => {
-          setError('Invalid email or password. Please try again or create an account.');
+          setError('Invalid email or password. Try admin@gmail.com / adminpass');
           setLoading(false);
         }, 1000);
       }
     } else {
-      // Sign Up Logic
       if (users.some((u: any) => u.email === email)) {
         setError('A user with this email already exists.');
         setLoading(false);
@@ -125,14 +137,14 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   };
 
   return (
-    <div className="min-h-screen flex bg-slate-950 overflow-hidden">
+    <div className="min-h-screen flex bg-slate-950 overflow-hidden animate-fade-in">
       {/* Brand Column */}
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-16 bg-emerald-950 relative">
         <div className="absolute inset-0 pattern-overlay"></div>
         <div className="absolute inset-0 bg-gradient-to-br from-emerald-900/60 via-transparent to-black/40"></div>
         
         <div className="relative z-10">
-          <Logo className="h-12 mb-16" />
+          <Logo className="h-12 mb-16" variant="light" />
           <div className="max-w-md space-y-8">
             <h1 className="text-6xl font-black text-white leading-none tracking-tight">
               Unlock Your <span className="text-emerald-400">Global</span> Potential.
@@ -149,7 +161,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
               <img key={i} className="w-10 h-10 rounded-full border-2 border-emerald-900" src={`https://i.pravatar.cc/100?img=${i+10}`} alt="user" />
             ))}
           </div>
-          <p className="text-emerald-300/80 text-sm font-medium">Join 50,000+ professionals prepping for global roles.</p>
+          <p className="text-emerald-300/80 text-[10px] font-black uppercase tracking-widest">Join 50k+ global candidates.</p>
         </div>
       </div>
 
@@ -161,16 +173,16 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
           </div>
 
           <div className="text-center lg:text-left">
-            <h2 className="text-4xl font-black text-white mb-3">
-              {isLogin ? 'Sign In' : 'Create Account'}
+            <h2 className="text-3xl font-black text-white mb-2 uppercase tracking-tight">
+              {isLogin ? 'Sign In' : 'Join HirePrep'}
             </h2>
-            <p className="text-slate-500 font-medium">
-              {isLogin ? 'Welcome back! Ready for your session?' : 'Start your journey to international job offers today.'}
+            <p className="text-slate-500 text-sm font-medium">
+              {isLogin ? 'Access your interview dashboard.' : 'Start your journey to international job offers.'}
             </p>
           </div>
 
           {error && (
-            <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-400 text-xs font-bold flex items-center space-x-3 animate-fade-in">
+            <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-400 text-[11px] font-bold flex items-center space-x-3 animate-fade-in">
               <i className="fas fa-exclamation-triangle"></i>
               <span>{error}</span>
             </div>
@@ -183,7 +195,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                 <input
                   type="text"
                   required
-                  className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-5 py-4 text-white focus:ring-2 focus:ring-emerald-500 outline-none transition-all placeholder:text-slate-700"
+                  className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-5 py-4 text-sm text-white focus:ring-1 focus:ring-emerald-500 outline-none transition-all placeholder:text-slate-700"
                   placeholder="e.g. Chinua Achebe"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -195,7 +207,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
               <input
                 type="email"
                 required
-                className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-5 py-4 text-white focus:ring-2 focus:ring-emerald-500 outline-none transition-all placeholder:text-slate-700"
+                className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-5 py-4 text-sm text-white focus:ring-1 focus:ring-emerald-500 outline-none transition-all placeholder:text-slate-700"
                 placeholder="name@company.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -206,7 +218,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
               <input
                 type="password"
                 required
-                className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-5 py-4 text-white focus:ring-2 focus:ring-emerald-500 outline-none transition-all placeholder:text-slate-700"
+                className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-5 py-4 text-sm text-white focus:ring-1 focus:ring-emerald-500 outline-none transition-all placeholder:text-slate-700"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -216,7 +228,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-5 bg-emerald-600 text-white rounded-2xl font-black uppercase tracking-[0.2em] text-xs hover:bg-emerald-500 transition-all shadow-xl shadow-emerald-900/20 active:scale-95 disabled:opacity-50"
+              className="w-full py-5 bg-emerald-600 text-white rounded-2xl font-black uppercase tracking-[0.2em] text-[10px] hover:bg-emerald-500 transition-all shadow-xl shadow-emerald-900/20 active:scale-95 disabled:opacity-50"
             >
               {loading ? <i className="fas fa-spinner fa-spin mr-2"></i> : null}
               {isLogin ? 'Sign In Now' : 'Create My Account'}
@@ -225,18 +237,18 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
 
           <div className="relative">
             <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-800"></div></div>
-            <div className="relative flex justify-center text-[10px] uppercase"><span className="bg-slate-950 px-4 text-slate-600 font-black tracking-widest">Secure Entry</span></div>
+            <div className="relative flex justify-center text-[10px] uppercase"><span className="bg-slate-950 px-4 text-slate-600 font-black tracking-[0.2em]">Social Integration</span></div>
           </div>
 
-          <div className="flex justify-center">
-            <div id="googleSignInButton" className="overflow-hidden rounded-xl"></div>
+          <div className="flex justify-center min-h-[44px]">
+            <div id="googleSignInButton" className="overflow-hidden rounded-xl w-full flex justify-center"></div>
           </div>
 
-          <p className="text-center text-sm text-slate-500">
-            {isLogin ? "Don't have an account?" : "Already a member?"}{' '}
+          <p className="text-center text-xs text-slate-500">
+            {isLogin ? "New to HirePrep?" : "Already registered?"}{' '}
             <button
               onClick={() => { setIsLogin(!isLogin); setError(''); }}
-              className="text-emerald-500 font-bold hover:underline"
+              className="text-emerald-500 font-bold hover:underline ml-1"
             >
               {isLogin ? 'Sign up for free' : 'Log in here'}
             </button>
@@ -245,11 +257,11 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
           {isLogin && (
             <div className="p-4 bg-slate-900/50 border border-slate-800 rounded-2xl">
               <p className="text-[9px] font-black uppercase text-emerald-500 tracking-[0.2em] mb-2 flex items-center">
-                <i className="fas fa-key mr-2"></i> Demo Access
+                <i className="fas fa-key mr-2"></i> Tester Credentials
               </p>
-              <div className="flex justify-between text-[11px] text-slate-500">
-                <p>Email: <span className="text-slate-200 font-mono">admin@gmail.com</span></p>
-                <p>Pass: <span className="text-slate-200 font-mono">adminpass</span></p>
+              <div className="flex justify-between text-[10px] text-slate-500 font-mono">
+                <p>Email: <span className="text-slate-200">admin@gmail.com</span></p>
+                <p>Pass: <span className="text-slate-200">adminpass</span></p>
               </div>
             </div>
           )}

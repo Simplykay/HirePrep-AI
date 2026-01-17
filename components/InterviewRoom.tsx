@@ -122,6 +122,8 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
     setLoading(true);
     setError(null);
 
+    const firstName = user?.name ? user.name.split(' ')[0] : 'Candidate';
+
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       const outCtx = new AudioCtx({ sampleRate: 24000 });
@@ -239,6 +241,7 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
       };
 
       const sysInstr = `Persona: You are a world-class senior hiring manager with an incredibly smooth, calm, and reassuring voice. You are here to coach the candidate to success. You speak clearly and warmly. 
+      IMPORTANT: The candidate's name is ${firstName}. Use their first name naturally during the conversation (e.g., "Hello ${firstName}", "Great point, ${firstName}") to create a personal, professional, and reassuring atmosphere.
       Market context: ${state.region}. Role: ${state.jobRole}.
       Rigor: Even though your voice is kind, your questions are insightful and high-level.
       Interactions: Wait for the candidate to finish their turn. If they say '[The candidate has finished]', acknowledge it warmly and move to the next question.`;

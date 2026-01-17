@@ -77,9 +77,11 @@ export const analyzeJobContext = async (state: InterviewState): Promise<any> => 
 export const generateNextQuestion = async (
   state: InterviewState, 
   history: {role: string, text: string}[],
-  isFirst: boolean = false
+  isFirst: boolean = false,
+  userName?: string
 ): Promise<string> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+  const firstName = userName ? userName.split(' ')[0] : 'Candidate';
   const difficultyPrompt = state.difficulty === Difficulty.HARD 
     ? "Ask complex, multi-layered scenario-based questions that test deep technical and strategic competence." 
     : state.difficulty === Difficulty.MEDIUM 
@@ -89,7 +91,7 @@ export const generateNextQuestion = async (
   const regionPrompt = `Incorporate nuances of the ${state.region} market, mentioning relevant local challenges or opportunities where appropriate for ${state.industry}.`;
 
   const prompt = isFirst 
-    ? `Start the professional interview for the role of ${state.jobRole} in the ${state.industry} industry, located in ${state.jobLocation}. 
+    ? `Start the professional interview with ${firstName} for the role of ${state.jobRole} in the ${state.industry} industry, located in ${state.jobLocation}. 
        ${difficultyPrompt} ${regionPrompt}
        Tailor your questioning to international standards and professional expectations.
        Reference parts of their CV: ${state.cvText.substring(0, 500)}... if relevant.`
@@ -102,7 +104,8 @@ export const generateNextQuestion = async (
     model: 'gemini-3-flash-preview',
     contents: prompt,
     config: {
-      systemInstruction: `You are the HirePrep AI Interviewer, a world-class executive coach. Your voice persona is smooth, calm, and reassuring. You speak clearly and with professional warmth to put the candidate at ease, even when asking difficult questions. 
+      systemInstruction: `You are the HirePrep AI Interviewer, a world-class executive coach. Your voice persona is smooth, calm, and reassuring. You speak clearly and with professional warmth to put the candidate at ease.
+      Address the candidate as ${firstName} naturally throughout the session.
       You are interviewing a high-potential candidate for a role in ${state.region}.
       Incorporate international professional standards and industry-specific terminology for ${state.industry}.
       Do not provide feedback yet, only ask the next question.`

@@ -1,15 +1,11 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 interface TourStep {
   targetId: string;
   title: string;
   content: string;
   position: 'top' | 'bottom' | 'left' | 'right' | 'center';
-}
-
-interface OnboardingTourProps {
-  onComplete: () => void;
 }
 
 const steps: TourStep[] = [
@@ -45,32 +41,44 @@ const steps: TourStep[] = [
   }
 ];
 
+interface OnboardingTourProps {
+  onComplete: () => void;
+}
+
 const OnboardingTour: React.FC<OnboardingTourProps> = ({ onComplete }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [coords, setCoords] = useState({ top: 0, left: 0, width: 0, height: 0 });
 
-  useEffect(() => {
-    const updateCoords = () => {
-      const step = steps[currentStep];
-      const el = document.getElementById(step.targetId);
-      if (el) {
-        const rect = el.getBoundingClientRect();
-        setCoords({
-          top: rect.top + window.scrollY,
-          left: rect.left + window.scrollX,
-          width: rect.width,
-          height: rect.height
-        });
+  const updateCoords = useCallback(() => {
+    const step = steps[currentStep];
+    const el = document.getElementById(step.targetId);
+    if (el) {
+      const rect = el.getBoundingClientRect();
+      setCoords({
+        top: rect.top,
+        left: rect.left,
+        width: rect.width,
+        height: rect.height
+      });
+      // Scroll into view if not visible, but only if needed to avoid jumping
+      const buffer = 100;
+      if (rect.top < buffer || rect.bottom > window.innerHeight - buffer) {
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      } else if (step.position === 'center') {
-        setCoords({ top: window.innerHeight / 2, left: window.innerWidth / 2, width: 0, height: 0 });
       }
-    };
+    } else if (step.position === 'center') {
+      setCoords({ top: window.innerHeight / 2, left: window.innerWidth / 2, width: 0, height: 0 });
+    }
+  }, [currentStep]);
 
+  useEffect(() => {
     updateCoords();
     window.addEventListener('resize', updateCoords);
-    return () => window.removeEventListener('resize', updateCoords);
-  }, [currentStep]);
+    window.addEventListener('scroll', updateCoords, { passive: true });
+    return () => {
+      window.removeEventListener('resize', updateCoords);
+      window.removeEventListener('scroll', updateCoords);
+    };
+  }, [updateCoords]);
 
   const handleNext = () => {
     if (currentStep < steps.length - 1) {
@@ -86,61 +94,94 @@ const OnboardingTour: React.FC<OnboardingTourProps> = ({ onComplete }) => {
 
   const step = steps[currentStep];
 
+  // Calculate Card Position
+  const getCardStyle = () => {
+    const margin = 20;
+    const cardWidth = 288; // w-72 = 18rem = 288px
+    const cardHeight = 220; // estimate
+
+    let top = coords.top;
+    let left = coords.left + (coords.width / 2) - (cardWidth / 2);
+
+    if (step.position === 'bottom') {
+      top = coords.top + coords.height + margin;
+    } else if (step.position === 'top') {
+      top = coords.top - cardHeight - margin;
+    } else if (step.position === 'left') {
+      left = coords.left - cardWidth - margin;
+      top = coords.top + (coords.height / 2) - (cardHeight / 2);
+    } else if (step.position === 'right') {
+      left = coords.left + coords.width + margin;
+      top = coords.top + (coords.height / 2) - (cardHeight / 2);
+    } else if (step.position === 'center') {
+      top = (window.innerHeight / 2) - (cardHeight / 2);
+      left = (window.innerWidth / 2) - (cardWidth / 2);
+    }
+
+    // Viewport safety
+    top = Math.max(margin, Math.min(top, window.innerHeight - cardHeight - margin));
+    left = Math.max(margin, Math.min(left, window.innerWidth - cardWidth - margin));
+
+    return {
+      top: `${top}px`,
+      left: `${left}px`,
+      transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)'
+    };
+  };
+
   return (
-    <div className="fixed inset-0 z-[100] pointer-events-none">
-      {/* Backdrop with hole */}
-      <div 
-        className="absolute inset-0 bg-black/60 backdrop-blur-[2px] pointer-events-auto"
-        style={{
-          clipPath: `polygon(
-            0% 0%, 
-            0% 100%, 
-            ${coords.left}px 100%, 
-            ${coords.left}px ${coords.top}px, 
-            ${coords.left + coords.width}px ${coords.top}px, 
-            ${coords.left + coords.width}px ${coords.top + coords.height}px, 
-            ${coords.left}px ${coords.top + coords.height}px, 
-            ${coords.left}px 100%, 
-            100% 100%, 
-            100% 0%
-          )`
-        }}
-      />
+    <div className="fixed inset-0 z-[1000] pointer-events-none overflow-hidden">
+      {/* SVG Spotlight Mask */}
+      <svg className="absolute inset-0 w-full h-full pointer-events-auto">
+        <defs>
+          <mask id="spotlight-mask">
+            <rect x="0" y="0" width="100%" height="100%" fill="white" />
+            <rect 
+              x={coords.left - 8} 
+              y={coords.top - 8} 
+              width={coords.width + 16} 
+              height={coords.height + 16} 
+              rx="12" 
+              fill="black"
+              style={{ transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)' }}
+            />
+          </mask>
+        </defs>
+        <rect 
+          x="0" y="0" width="100%" height="100%" 
+          fill="rgba(2, 6, 23, 0.75)" 
+          mask="url(#spotlight-mask)" 
+          className="backdrop-blur-[2px]"
+        />
+      </svg>
 
       {/* Tour Card */}
       <div 
-        className="absolute bg-slate-900 border border-emerald-500/30 p-6 rounded-[2rem] shadow-2xl w-72 pointer-events-auto animate-slide-up"
-        style={{
-          top: step.position === 'bottom' ? coords.top + coords.height + 20 : 
-               step.position === 'top' ? coords.top - 200 : 
-               step.position === 'center' ? window.innerHeight / 2 - 100 : 
-               coords.top,
-          left: step.position === 'left' ? coords.left - 300 : 
-                step.position === 'right' ? coords.left + coords.width + 20 : 
-                step.position === 'center' ? window.innerWidth / 2 - 144 :
-                coords.left + (coords.width / 2) - 144,
-          transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)'
-        }}
+        className="absolute bg-slate-900 border border-slate-800 p-7 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] w-72 pointer-events-auto animate-slide-up ring-1 ring-white/5"
+        style={getCardStyle()}
       >
-        <div className="flex items-center space-x-2 mb-3">
-          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-          <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Guide {currentStep + 1}/{steps.length}</span>
+        <div className="flex items-center space-x-2 mb-4">
+          <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]"></div>
+          <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">
+            Guide {currentStep + 1} of {steps.length}
+          </span>
         </div>
-        <h3 className="text-lg font-black text-white mb-2">{step.title}</h3>
-        <p className="text-xs text-slate-400 leading-relaxed mb-6">{step.content}</p>
         
-        <div className="flex items-center justify-between">
+        <h3 className="text-lg font-black text-white mb-2 leading-tight">{step.title}</h3>
+        <p className="text-xs text-slate-400 leading-relaxed mb-8">{step.content}</p>
+        
+        <div className="flex items-center justify-between pt-2">
           <button 
             onClick={handleSkip}
-            className="text-[10px] font-bold text-slate-500 hover:text-white transition-colors uppercase tracking-widest"
+            className="text-[10px] font-black text-slate-500 hover:text-white transition-colors uppercase tracking-[0.2em]"
           >
-            Skip Tour
+            Skip
           </button>
           <button 
             onClick={handleNext}
-            className="px-6 py-2 bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-emerald-500 transition-all shadow-lg active:scale-95"
+            className="px-6 py-3 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500 transition-all shadow-xl shadow-emerald-900/20 active:scale-95"
           >
-            {currentStep === steps.length - 1 ? 'Finish' : 'Next'}
+            {currentStep === steps.length - 1 ? 'Get Started' : 'Next Step'}
           </button>
         </div>
       </div>
