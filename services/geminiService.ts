@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type, GenerateContentResponse, Modality } from "@google/genai";
 import { InterviewState, FeedbackData, Difficulty } from "../types";
 
@@ -188,7 +189,7 @@ export const generateDetailedFeedback = async (
     const text = response.text;
     if (!text) throw new Error("Empty response");
     const parsed = JSON.parse(text);
-    return { ...parsed, skillGaps: [] }; // Fallback for skillGaps if missing from prompt logic
+    return { ...parsed, skillGaps: [] }; 
   } catch (e) {
     throw new Error("Failed to parse feedback.");
   }

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Header from './components/Header';
@@ -6,6 +7,7 @@ import PreparationFlow from './components/PreparationFlow';
 import InterviewRoom from './components/InterviewRoom';
 import Pricing from './components/Pricing';
 import Auth from './components/Auth';
+import OnboardingTour from './components/OnboardingTour';
 import { UserProfile, SubscriptionTier, InterviewResult } from './types';
 import { createChatSession } from './services/geminiService';
 
@@ -141,6 +143,7 @@ const AIChatAssistant: React.FC = () => {
         </div>
       ) : (
         <button 
+          id="career-assistant-btn"
           onClick={() => setIsOpen(true)}
           className="w-12 h-12 md:w-14 md:h-14 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-xl hover:scale-110 transition-all success-glow"
         >
@@ -154,7 +157,7 @@ const AIChatAssistant: React.FC = () => {
 const AppRoutes: React.FC<{ user: UserProfile, onLogout: () => void, updateUserInfo: (u: Partial<UserProfile>) => void, addInterviewResult: (r: InterviewResult) => void, handleUpgrade: (t: SubscriptionTier) => void }> = ({ user, onLogout, updateUserInfo, addInterviewResult, handleUpgrade }) => {
   return (
     <>
-      <Header user={user} onLogout={onLogout} />
+      <Header user={user} onLogout={onLogout} onRestartTour={() => updateUserInfo({ hasCompletedOnboarding: false })} />
       <main className="flex-grow container mx-auto px-4 py-4 md:py-8 max-w-6xl">
         <Routes>
           <Route path="/" element={<Dashboard user={user} />} />
@@ -167,6 +170,7 @@ const AppRoutes: React.FC<{ user: UserProfile, onLogout: () => void, updateUserI
       </main>
       <CornerCelebration user={user} />
       <AIChatAssistant />
+      {!user.hasCompletedOnboarding && <OnboardingTour onComplete={() => updateUserInfo({ hasCompletedOnboarding: true })} />}
     </>
   );
 };

@@ -5,6 +5,7 @@ import { UserProfile, Difficulty, InterviewState, AfricanRegion } from '../types
 import { analyzeJobContext } from '../services/geminiService';
 
 const PERSISTENCE_KEY = 'hireprep_prep_draft';
+const ACTIVE_SESSION_KEY = 'hireprep_active_session';
 
 const PreparationFlow: React.FC<{ user: UserProfile, onSaveState?: (state: InterviewState) => void }> = ({ user, onSaveState }) => {
   const navigate = useNavigate();
@@ -14,7 +15,6 @@ const PreparationFlow: React.FC<{ user: UserProfile, onSaveState?: (state: Inter
   const [isScanning, setIsScanning] = useState(false);
   
   const [form, setForm] = useState<InterviewState>(() => {
-    // Attempt to load from localStorage first
     const saved = localStorage.getItem(PERSISTENCE_KEY);
     if (saved) {
       try {
@@ -23,7 +23,6 @@ const PreparationFlow: React.FC<{ user: UserProfile, onSaveState?: (state: Inter
         console.error("Failed to parse saved preparation state", e);
       }
     }
-    // Fallback to default
     return {
       cvText: '',
       jobDescription: '',
@@ -36,7 +35,6 @@ const PreparationFlow: React.FC<{ user: UserProfile, onSaveState?: (state: Inter
     };
   });
 
-  // Persist form changes to localStorage
   useEffect(() => {
     localStorage.setItem(PERSISTENCE_KEY, JSON.stringify(form));
   }, [form]);
@@ -71,9 +69,9 @@ const PreparationFlow: React.FC<{ user: UserProfile, onSaveState?: (state: Inter
   };
 
   const startInterview = () => {
-    // Clear draft once we commit to a real session
     localStorage.removeItem(PERSISTENCE_KEY);
     localStorage.removeItem('active_interview_transcript');
+    localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(form));
     sessionStorage.setItem('current_interview', JSON.stringify(form));
     navigate('/interview');
   };

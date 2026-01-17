@@ -35,6 +35,7 @@ export interface UserProfile {
   avatarUrl?: string;
   history: InterviewResult[];
   lastSessionState?: InterviewState;
+  hasCompletedOnboarding?: boolean;
 }
 
 export interface InterviewState {

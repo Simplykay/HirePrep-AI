@@ -11,6 +11,8 @@ import {
 } from '../services/geminiService';
 import FeedbackReport from './FeedbackReport';
 
+const ACTIVE_SESSION_KEY = 'hireprep_active_session';
+
 const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) => void }> = ({ user, onFinish }) => {
   const navigate = useNavigate();
   const [state, setState] = useState<InterviewState | null>(null);
@@ -51,8 +53,10 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
   const currentInputTextRef = useRef('');
 
   useEffect(() => {
-    const data = sessionStorage.getItem('current_interview');
+    // Attempt to get state from multiple persistence points
+    const data = localStorage.getItem(ACTIVE_SESSION_KEY) || sessionStorage.getItem('current_interview');
     if (!data) {
+      console.warn("No session data found. Redirecting...");
       navigate('/prepare');
       return;
     }
@@ -60,6 +64,7 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
       const interviewState = JSON.parse(data);
       setState(interviewState);
     } catch (e) {
+      console.error("Invalid session data", e);
       navigate('/prepare');
     }
 
@@ -101,23 +106,18 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
     }
   };
 
-  /**
-   * Signal to the model that the user has finished speaking.
-   * This sends a text nudge which usually prompts the Gemini Live API to take over the turn.
-   */
   const sendFinishedSignal = () => {
     if (liveSessionPromiseRef.current) {
       liveSessionPromiseRef.current.then((session: any) => {
-        // Explicit text part to trigger the model's response if it's waiting for more audio.
         session.sendRealtimeInput({ 
           text: "[The candidate has finished their response. Please proceed with your next question or feedback.]" 
         });
-      }).catch(() => {});
+      }).catch((err: any) => console.error("Signal failed", err));
     }
   };
 
   const initializeAudioAndStart = async () => {
-    if (!state) return;
+    if (!state || loading) return;
     setLoading(true);
     setError(null);
 
@@ -211,17 +211,22 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
             setActiveSpeaker(null);
           }
 
-          const audioData = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
-          if (audioData && outputAudioContextRef.current) {
-            nextStartTimeRef.current = Math.max(nextStartTimeRef.current, outputAudioContextRef.current.currentTime);
-            const audioBuffer = await decodeAudioData(decode(audioData), outputAudioContextRef.current, 24000, 1);
-            const source = outputAudioContextRef.current.createBufferSource();
-            source.buffer = audioBuffer;
-            source.connect(outputAudioContextRef.current.destination);
-            source.addEventListener('ended', () => sourcesRef.current.delete(source));
-            source.start(nextStartTimeRef.current);
-            nextStartTimeRef.current += audioBuffer.duration;
-            sourcesRef.current.add(source);
+          // Handle audio parts safely
+          if (message.serverContent?.modelTurn?.parts && outputAudioContextRef.current) {
+             for (const part of message.serverContent.modelTurn.parts) {
+               if (part.inlineData?.data) {
+                  const audioData = part.inlineData.data;
+                  nextStartTimeRef.current = Math.max(nextStartTimeRef.current, outputAudioContextRef.current.currentTime);
+                  const audioBuffer = await decodeAudioData(decode(audioData), outputAudioContextRef.current, 24000, 1);
+                  const source = outputAudioContextRef.current.createBufferSource();
+                  source.buffer = audioBuffer;
+                  source.connect(outputAudioContextRef.current.destination);
+                  source.addEventListener('ended', () => sourcesRef.current.delete(source));
+                  source.start(nextStartTimeRef.current);
+                  nextStartTimeRef.current += audioBuffer.duration;
+                  sourcesRef.current.add(source);
+               }
+             }
           }
 
           if (message.serverContent?.interrupted) {
@@ -231,12 +236,13 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
           }
         },
         onerror: (e: any) => {
-          console.error("Live Session Error:", e);
-          setError("Session interrupted. Please ensure you have a stable network.");
+          console.error("Live Session Connection Error:", e);
+          setError("Connection failed. Please check your network or refresh.");
           setLoading(false);
           setIsReady(false);
         },
-        onclose: () => {
+        onclose: (e: any) => {
+          console.warn("Live Session Closed:", e);
           setLoading(false);
           setIsReady(false);
         }
@@ -247,9 +253,14 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
       Wait for the candidate to finish their turn. Be professional, direct, and slightly challenging if difficulty is set to Hard.`;
       
       liveSessionPromiseRef.current = connectLiveSession(callbacks, sysInstr);
+      liveSessionPromiseRef.current.catch((err: any) => {
+        console.error("Promise rejection in connect:", err);
+        setError("Failed to establish secure link.");
+        setLoading(false);
+      });
     } catch (err: any) {
-      console.error("Microphone or Session Error:", err);
-      setError(err.name === 'NotAllowedError' ? "Microphone access was denied." : "Could not initialize session.");
+      console.error("Microphone or Initialization Error:", err);
+      setError(err.name === 'NotAllowedError' ? "Microphone access was denied." : "Critical system failure.");
       setLoading(false);
     }
   };
@@ -266,6 +277,7 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
       report.toneScore = 92;
       setFeedback(report);
       localStorage.removeItem('active_interview_transcript');
+      localStorage.removeItem(ACTIVE_SESSION_KEY);
       if (onFinish) {
         onFinish({
           id: Date.now().toString(),
@@ -277,6 +289,7 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
       }
     } catch (err) {
       console.error(err);
+      setError("Failed to generate report. Please try again.");
     } finally {
       setFinishing(false);
     }
@@ -294,11 +307,22 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
         </div>
         <h2 className="text-2xl font-black text-white mb-3">Ready to begin?</h2>
         <p className="text-slate-400 max-w-xs mb-10 leading-relaxed font-medium text-sm">
-          Connect with your AI Hiring Manager for the {state?.region} market.
+          Connect with your AI Hiring Manager for the {state?.region || 'Global'} market.
         </p>
-        {error && <div className="mb-8 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-400 text-xs font-bold">{error}</div>}
+        {error && (
+          <div className="mb-8 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-400 text-xs font-bold flex flex-col items-center">
+            <i className="fas fa-exclamation-circle mb-2"></i>
+            <span>{error}</span>
+          </div>
+        )}
         <div className="flex flex-col space-y-4 w-full max-w-xs px-6">
-          <button onClick={initializeAudioAndStart} className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black uppercase tracking-[0.2em] text-xs hover:bg-emerald-500 shadow-xl active:scale-95 transition-all">Start Session</button>
+          <button 
+            onClick={initializeAudioAndStart} 
+            disabled={!state}
+            className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black uppercase tracking-[0.2em] text-xs hover:bg-emerald-500 shadow-xl active:scale-95 transition-all disabled:opacity-50"
+          >
+            Start Session
+          </button>
           <button onClick={() => navigate('/')} className="w-full py-3 text-slate-500 font-bold text-[10px] uppercase tracking-widest hover:text-white transition-colors">Go Back</button>
         </div>
       </div>

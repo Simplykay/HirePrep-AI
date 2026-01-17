@@ -2,7 +2,20 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { UserProfile, InterviewResult } from '../types';
-import { CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis } from 'recharts';
+import { CartesianGrid, Tooltip as ChartTooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis } from 'recharts';
+
+// Simple hover tooltip component
+const Tooltip: React.FC<{ children: React.ReactNode, text: string }> = ({ children, text }) => {
+  return (
+    <div className="group relative">
+      {children}
+      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-200 rounded-lg opacity-0 group-hover:opacity-100 transition-all pointer-events-none whitespace-nowrap z-50">
+        {text}
+        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800"></div>
+      </div>
+    </div>
+  );
+};
 
 const Dashboard: React.FC<{ user: UserProfile }> = ({ user }) => {
   const navigate = useNavigate();
@@ -23,7 +36,6 @@ const Dashboard: React.FC<{ user: UserProfile }> = ({ user }) => {
   };
 
   const startFreshSession = () => {
-    // Clear any previous session leftovers before navigation
     sessionStorage.removeItem('current_interview');
     localStorage.removeItem('active_interview_transcript');
     navigate('/prepare');
@@ -32,7 +44,7 @@ const Dashboard: React.FC<{ user: UserProfile }> = ({ user }) => {
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Professional Hero Section */}
-      <div className="bg-emerald-600 rounded-3xl p-8 md:p-12 text-white relative overflow-hidden shadow-2xl">
+      <div id="welcome-hero" className="bg-emerald-600 rounded-3xl p-8 md:p-12 text-white relative overflow-hidden shadow-2xl">
         <div className="absolute inset-0 pattern-overlay"></div>
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 blur-[80px] rounded-full translate-x-1/2 -translate-y-1/2"></div>
         
@@ -47,17 +59,20 @@ const Dashboard: React.FC<{ user: UserProfile }> = ({ user }) => {
                 : "Your global career journey starts here. Launch your first mock interview."}
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
-              <button 
-                onClick={startFreshSession}
-                className="inline-flex items-center justify-center space-x-2 bg-white text-emerald-600 px-8 py-4 rounded-xl font-bold hover:bg-emerald-50 transition-all transform hover:scale-105 shadow-xl active:scale-95"
-              >
-                <i className="fas fa-plus-circle text-sm"></i>
-                <span>Start New Prep</span>
-              </button>
+              <Tooltip text="Begin a fresh analysis & mock session">
+                <button 
+                  id="start-prep-btn"
+                  onClick={startFreshSession}
+                  className="inline-flex items-center justify-center space-x-2 bg-white text-emerald-600 px-8 py-4 rounded-xl font-bold hover:bg-emerald-50 transition-all transform hover:scale-105 shadow-xl active:scale-95 w-full sm:w-auto"
+                >
+                  <i className="fas fa-plus-circle text-sm"></i>
+                  <span>Start New Prep</span>
+                </button>
+              </Tooltip>
               {user.lastSessionState && (
                 <button 
                   onClick={resumePrep}
-                  className="inline-flex items-center justify-center space-x-2 bg-emerald-700 text-white px-8 py-4 rounded-xl font-bold hover:bg-emerald-800 transition-all border border-emerald-500/30 active:scale-95"
+                  className="inline-flex items-center justify-center space-x-2 bg-emerald-700 text-white px-8 py-4 rounded-xl font-bold hover:bg-emerald-800 transition-all border border-emerald-500/30 active:scale-95 w-full sm:w-auto"
                 >
                   <i className="fas fa-redo text-sm"></i>
                   <span>Resume Studio</span>
@@ -66,7 +81,7 @@ const Dashboard: React.FC<{ user: UserProfile }> = ({ user }) => {
             </div>
           </div>
           
-          <div className="flex-shrink-0 bg-emerald-700/50 backdrop-blur-md p-6 rounded-2xl border border-white/20 min-w-[240px]">
+          <div id="competency-index" className="flex-shrink-0 bg-emerald-700/50 backdrop-blur-md p-6 rounded-2xl border border-white/20 min-w-[240px]">
              <div className="text-center mb-4">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-200">Competency Index</p>
                 <p className="text-5xl font-black text-white">
@@ -92,12 +107,15 @@ const Dashboard: React.FC<{ user: UserProfile }> = ({ user }) => {
 
       {/* Progress Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 bg-slate-900/50 p-8 rounded-2xl border border-slate-800/50">
+        <div id="performance-trend" className="lg:col-span-2 bg-slate-900/50 p-8 rounded-2xl border border-slate-800/50">
           <div className="flex items-center justify-between mb-8">
             <div>
               <h2 className="text-xl font-bold text-slate-100">Performance Trend</h2>
               <p className="text-xs text-slate-500 mt-1">Growth across your sessions.</p>
             </div>
+            <Tooltip text="Scores derived from Gemini AI analysis">
+               <i className="fas fa-info-circle text-slate-600 cursor-help"></i>
+            </Tooltip>
           </div>
           
           <div className="h-72">
@@ -107,7 +125,7 @@ const Dashboard: React.FC<{ user: UserProfile }> = ({ user }) => {
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 10}} />
                   <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 10}} domain={[0, 100]} />
-                  <Tooltip 
+                  <ChartTooltip 
                     contentStyle={{borderRadius: '16px', border: '1px solid #1e293b', backgroundColor: '#020617', color: '#fff'}}
                   />
                   <Line 
