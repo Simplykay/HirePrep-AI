@@ -4,6 +4,8 @@ import { useNavigate, Link } from 'react-router-dom';
 import { UserProfile, Difficulty, InterviewState, AfricanRegion } from '../types';
 import { analyzeJobContext } from '../services/geminiService';
 
+const PERSISTENCE_KEY = 'hireprep_prep_draft';
+
 const PreparationFlow: React.FC<{ user: UserProfile, onSaveState?: (state: InterviewState) => void }> = ({ user, onSaveState }) => {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
@@ -11,22 +13,33 @@ const PreparationFlow: React.FC<{ user: UserProfile, onSaveState?: (state: Inter
   const [analysis, setAnalysis] = useState<any | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   
-  const [form, setForm] = useState<InterviewState>({
-    cvText: '',
-    jobDescription: '',
-    jobRole: '',
-    jobLocation: '',
-    industry: '',
-    difficulty: Difficulty.MEDIUM,
-    region: 'Nigeria (West)',
-    isRandomized: false
+  const [form, setForm] = useState<InterviewState>(() => {
+    // Attempt to load from localStorage first
+    const saved = localStorage.getItem(PERSISTENCE_KEY);
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Failed to parse saved preparation state", e);
+      }
+    }
+    // Fallback to default
+    return {
+      cvText: '',
+      jobDescription: '',
+      jobRole: '',
+      jobLocation: '',
+      industry: '',
+      difficulty: Difficulty.MEDIUM,
+      region: 'Nigeria (West)',
+      isRandomized: false
+    };
   });
 
-  const regions: AfricanRegion[] = [
-    'Nigeria (West)', 'Kenya (East)', 'South Africa (South)', 
-    'Egypt (North)', 'Ghana (West)', 'Ethiopia (East)', 
-    'Remote / Pan-African', 'Global / International'
-  ];
+  // Persist form changes to localStorage
+  useEffect(() => {
+    localStorage.setItem(PERSISTENCE_KEY, JSON.stringify(form));
+  }, [form]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -58,11 +71,18 @@ const PreparationFlow: React.FC<{ user: UserProfile, onSaveState?: (state: Inter
   };
 
   const startInterview = () => {
-    // Reset any active transcript state before starting a new session
+    // Clear draft once we commit to a real session
+    localStorage.removeItem(PERSISTENCE_KEY);
     localStorage.removeItem('active_interview_transcript');
     sessionStorage.setItem('current_interview', JSON.stringify(form));
     navigate('/interview');
   };
+
+  const regions: AfricanRegion[] = [
+    'Nigeria (West)', 'Kenya (East)', 'South Africa (South)', 
+    'Egypt (North)', 'Ghana (West)', 'Ethiopia (East)', 
+    'Remote / Pan-African', 'Global / International'
+  ];
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-in slide-in-from-bottom-4 duration-500 relative pb-12">

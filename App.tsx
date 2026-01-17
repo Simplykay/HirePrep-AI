@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect, useRef } from 'react';
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Header from './components/Header';
 import Dashboard from './components/Dashboard';
 import PreparationFlow from './components/PreparationFlow';
@@ -13,17 +12,23 @@ import { createChatSession } from './services/geminiService';
 // Floating Corner Component for Onboarding/Celebration
 const CornerCelebration: React.FC<{ user: UserProfile }> = ({ user }) => {
   const [visible, setVisible] = useState(false);
+  const location = useLocation();
 
   useEffect(() => {
+    // Don't show celebration during interviews
+    if (location.pathname === '/interview') {
+      setVisible(false);
+      return;
+    }
     const timer = setTimeout(() => setVisible(true), 1500);
     const hideTimer = setTimeout(() => setVisible(false), 8000);
     return () => { clearTimeout(timer); clearTimeout(hideTimer); };
-  }, []);
+  }, [location.pathname]);
 
   if (!visible) return null;
 
   return (
-    <div className="fixed bottom-6 right-6 z-[60] animate-slide-in-right">
+    <div className="fixed bottom-6 right-6 z-[60] animate-slide-in-right hidden md:block">
       <div className="glass border border-emerald-500/30 rounded-2xl p-4 shadow-2xl flex items-center space-x-4 max-w-xs success-glow">
         <div className="relative">
           <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-emerald-500 animate-float">
@@ -53,17 +58,21 @@ const AIChatAssistant: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const chatSessionRef = useRef<any>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const location = useLocation();
 
   useEffect(() => {
     if (isOpen && !chatSessionRef.current) {
       chatSessionRef.current = createChatSession();
-      setMessages([{ role: 'model', text: 'Hi! I am your AfriPrep Assistant. How can I help with your career today?' }]);
+      setMessages([{ role: 'model', text: 'Hi! I am your HirePrep Assistant. How can I help with your career today?' }]);
     }
   }, [isOpen]);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Hide the assistant during active interviews to maximize screen space on mobile
+  if (location.pathname === '/interview') return null;
 
   const handleSend = async () => {
     if (!input.trim() || loading || !chatSessionRef.current) return;
@@ -133,12 +142,32 @@ const AIChatAssistant: React.FC = () => {
       ) : (
         <button 
           onClick={() => setIsOpen(true)}
-          className="w-14 h-14 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-xl hover:scale-110 transition-all success-glow"
+          className="w-12 h-12 md:w-14 md:h-14 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-xl hover:scale-110 transition-all success-glow"
         >
-          <i className="fas fa-comment-dots text-xl"></i>
+          <i className="fas fa-comment-dots text-lg md:text-xl"></i>
         </button>
       )}
     </div>
+  );
+};
+
+const AppRoutes: React.FC<{ user: UserProfile, onLogout: () => void, updateUserInfo: (u: Partial<UserProfile>) => void, addInterviewResult: (r: InterviewResult) => void, handleUpgrade: (t: SubscriptionTier) => void }> = ({ user, onLogout, updateUserInfo, addInterviewResult, handleUpgrade }) => {
+  return (
+    <>
+      <Header user={user} onLogout={onLogout} />
+      <main className="flex-grow container mx-auto px-4 py-4 md:py-8 max-w-6xl">
+        <Routes>
+          <Route path="/" element={<Dashboard user={user} />} />
+          <Route path="/history" element={<Dashboard user={user} />} />
+          <Route path="/prepare" element={<PreparationFlow user={user} onSaveState={(s) => updateUserInfo({ lastSessionState: s })} />} />
+          <Route path="/interview" element={<InterviewRoom user={user} onFinish={addInterviewResult} />} />
+          <Route path="/pricing" element={<Pricing user={user} onUpgrade={handleUpgrade} />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </main>
+      <CornerCelebration user={user} />
+      <AIChatAssistant />
+    </>
   );
 };
 
@@ -147,7 +176,7 @@ const App: React.FC = () => {
 
   // Persistence simulation
   useEffect(() => {
-    const savedUser = localStorage.getItem('afriprep_user');
+    const savedUser = localStorage.getItem('hireprep_user');
     if (savedUser) {
       const parsed = JSON.parse(savedUser);
       // Ensure history exists for older saved profiles
@@ -159,12 +188,12 @@ const App: React.FC = () => {
   const handleLogin = (newUser: UserProfile) => {
     if (!newUser.history) newUser.history = [];
     setUser(newUser);
-    localStorage.setItem('afriprep_user', JSON.stringify(newUser));
+    localStorage.setItem('hireprep_user', JSON.stringify(newUser));
   };
 
   const handleLogout = () => {
     setUser(null);
-    localStorage.removeItem('afriprep_user');
+    localStorage.removeItem('hireprep_user');
     window.location.hash = '/';
   };
 
@@ -172,7 +201,7 @@ const App: React.FC = () => {
     if (!user) return;
     const updated = { ...user, ...updates };
     setUser(updated);
-    localStorage.setItem('afriprep_user', JSON.stringify(updated));
+    localStorage.setItem('hireprep_user', JSON.stringify(updated));
   };
 
   const handleUpgrade = (tier: SubscriptionTier) => {
@@ -195,22 +224,14 @@ const App: React.FC = () => {
   return (
     <HashRouter>
       <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100">
-        <Header user={user} onLogout={handleLogout} />
-        <main className="flex-grow container mx-auto px-4 py-8 max-w-6xl">
-          <Routes>
-            <Route path="/" element={<Dashboard user={user} />} />
-            <Route path="/history" element={<Dashboard user={user} />} />
-            <Route path="/prepare" element={<PreparationFlow user={user} onSaveState={(s) => updateUserInfo({ lastSessionState: s })} />} />
-            <Route path="/interview" element={<InterviewRoom user={user} onFinish={addInterviewResult} />} />
-            <Route path="/pricing" element={<Pricing user={user} onUpgrade={handleUpgrade} />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </main>
+        <AppRoutes 
+          user={user} 
+          onLogout={handleLogout} 
+          updateUserInfo={updateUserInfo} 
+          addInterviewResult={addInterviewResult} 
+          handleUpgrade={handleUpgrade} 
+        />
         
-        {/* Global UI Components */}
-        <CornerCelebration user={user} />
-        <AIChatAssistant />
-
         <footer className="bg-slate-900 border-t border-slate-800 py-6 mt-auto">
           <div className="container mx-auto px-4 text-center text-slate-500 text-sm">
             &copy; {new Date().getFullYear()} HirePrep AI. Helping Africa's talent reach the global stage.

@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type, GenerateContentResponse, Modality } from "@google/genai";
 import { InterviewState, FeedbackData, Difficulty } from "../types";
 
@@ -6,7 +5,7 @@ export const analyzeJobContext = async (state: InterviewState): Promise<any> => 
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
   
   const prompt = `
-    As a world-class Global Talent Acquisition Specialist specializing in the African tech and professional market, analyze the following data for a candidate applying to a role in ${state.region}:
+    Representing HirePrep, as a world-class Global Talent Acquisition Specialist specializing in the African tech and professional market, analyze the following data for a candidate applying to a role in ${state.region}:
     
     JOB ROLE: ${state.jobRole}
     INDUSTRY/DOMAIN: ${state.industry}
@@ -102,7 +101,7 @@ export const generateNextQuestion = async (
     model: 'gemini-3-flash-preview',
     contents: prompt,
     config: {
-      systemInstruction: `You are a Global Talent Acquisition Leader with deep expertise in the African professional landscape. 
+      systemInstruction: `You are the HirePrep AI Interviewer, a Global Talent Acquisition Leader with deep expertise in the African professional landscape. 
       You are interviewing a high-potential candidate for a role in ${state.region}. You speak with clarity, authority, and professional warmth. 
       Incorporate international professional standards and industry-specific terminology for ${state.industry}.
       Do not provide feedback yet, only ask the next question.`
@@ -117,7 +116,7 @@ export const generateDetailedFeedback = async (
   history: {role: string, text: string}[]
 ): Promise<FeedbackData> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
-  const prompt = `Analyze this professional interview transcript and provide a structured review in JSON format.
+  const prompt = `As the HirePrep Performance Analyst, analyze this professional interview transcript and provide a structured review in JSON format.
   
   CONTEXT:
   Role: ${state.jobRole}
@@ -201,7 +200,7 @@ export const createChatSession = () => {
   return ai.chats.create({
     model: 'gemini-3-pro-preview',
     config: {
-      systemInstruction: 'You are an AI Global Career Consultant with specific expertise in the African and emerging markets. You help professionals with career strategy, CV optimization, and international interview preparation. Be highly professional, globally aware, and concise.',
+      systemInstruction: 'You are the HirePrep AI Career Consultant, a Global expert in African and emerging markets. You help professionals with career strategy, CV optimization, and international interview preparation on the HirePrep platform. Be highly professional, globally aware, and concise.',
     }
   });
 };
