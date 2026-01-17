@@ -126,9 +126,11 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
 
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      const outCtx = new AudioCtx({ sampleRate: 24000 });
-      const inCtx = new AudioCtx({ sampleRate: 16000 });
+      // MOBILE FIX: Do not force sampleRate in constructor. Let the browser use native hardware rate.
+      const outCtx = new AudioCtx(); 
+      const inCtx = new AudioCtx();
       
+      // Ensure contexts are running (vital for mobile touch-to-play)
       if (outCtx.state === 'suspended') await outCtx.resume();
       if (inCtx.state === 'suspended') await inCtx.resume();
       
@@ -162,14 +164,35 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
           const scriptProcessor = inCtx.createScriptProcessor(4096, 1, 1);
           scriptProcessor.onaudioprocess = (e: any) => {
             const inputData = e.inputBuffer.getChannelData(0);
-            const int16 = new Int16Array(inputData.length);
-            for (let i = 0; i < inputData.length; i++) {
-              int16[i] = inputData[i] * 32768;
+            const sourceRate = inCtx.sampleRate;
+            const targetRate = 16000;
+            
+            // MOBILE FIX: Downsample audio if system rate > 16000Hz (e.g. 48kHz on Android/iOS)
+            let pcmData: Int16Array;
+            
+            if (sourceRate !== targetRate) {
+              const ratio = sourceRate / targetRate;
+              const newLength = Math.ceil(inputData.length / ratio);
+              pcmData = new Int16Array(newLength);
+              for (let i = 0; i < newLength; i++) {
+                const offset = Math.floor(i * ratio);
+                // Clamp index to avoid OOB
+                const val = inputData[Math.min(offset, inputData.length - 1)]; 
+                // Simple clamp for int16 conversion
+                pcmData[i] = Math.max(-1, Math.min(1, val)) * 32767;
+              }
+            } else {
+              pcmData = new Int16Array(inputData.length);
+              for (let i = 0; i < inputData.length; i++) {
+                pcmData[i] = Math.max(-1, Math.min(1, inputData[i])) * 32767;
+              }
             }
+
             const pcmBlob = {
-              data: encode(new Uint8Array(int16.buffer)),
+              data: encode(new Uint8Array(pcmData.buffer)),
               mimeType: 'audio/pcm;rate=16000',
             };
+            
             if (liveSessionPromiseRef.current) {
               liveSessionPromiseRef.current.then((session: any) => {
                 session.sendRealtimeInput({ media: pcmBlob });
@@ -197,7 +220,6 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
             const candText = currentInputTextRef.current;
             const intText = currentOutputTextRef.current;
             
-            // Critical Analysis: Count fillers in the final turn text
             const words = candText.toLowerCase().split(/\s+/);
             const fillersInTurn = words.filter(w => FILLER_WORDS.includes(w.replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, "")));
             setFillerCount(prev => prev + fillersInTurn.length);
@@ -221,6 +243,8 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
                if (part.inlineData?.data) {
                   const audioData = part.inlineData.data;
                   nextStartTimeRef.current = Math.max(nextStartTimeRef.current, outputAudioContextRef.current.currentTime);
+                  // Pass 24000 explicitly as source rate; decodeAudioData will create a buffer at this rate.
+                  // The AudioContext (which might be 48k) will automatically handle the upsampling during playback.
                   const audioBuffer = await decodeAudioData(decode(audioData), outputAudioContextRef.current, 24000, 1);
                   const source = outputAudioContextRef.current.createBufferSource();
                   source.buffer = audioBuffer;
@@ -248,7 +272,8 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
       
       liveSessionPromiseRef.current = connectLiveSession(callbacks, sysInstr);
     } catch (err: any) {
-      setError("Microphone access required.");
+      console.error(err);
+      setError("Microphone access required. Ensure you are on a secure (HTTPS) connection.");
       setLoading(false);
     }
   };
@@ -260,7 +285,7 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
     try {
       const history = transcriptions.map(t => ({ role: t.role === 'Candidate' ? 'user' : 'model', text: t.text }));
       const report = await generateDetailedFeedback(state, history);
-      report.paceScore = wpm > 160 || wpm < 110 ? 70 : 95; // Benchmarked pace score
+      report.paceScore = wpm > 160 || wpm < 110 ? 70 : 95; 
       report.clarityScore = voiceClarity;
       report.toneScore = 90;
       setFeedback(report);
@@ -326,45 +351,46 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
     <div className="flex flex-col h-full max-w-7xl mx-auto px-4 md:px-6 animate-fade-in relative pb-10">
       
       {/* Session Controls */}
-      <div className="flex items-center justify-between mb-8 bg-slate-900/60 backdrop-blur-xl p-5 rounded-[2.5rem] border border-slate-800/50 shadow-2xl">
-        <div className="flex items-center space-x-5">
+      <div className="flex flex-col md:flex-row items-center justify-between mb-8 bg-slate-900/60 backdrop-blur-xl p-5 rounded-[2.5rem] border border-slate-800/50 shadow-2xl gap-4 md:gap-0">
+        <div className="flex items-center space-x-5 w-full md:w-auto justify-between md:justify-start">
           <button onClick={handleExit} className="w-12 h-12 rounded-2xl bg-slate-800 hover:bg-red-500/10 hover:text-red-500 flex items-center justify-center text-slate-400 transition-all">
             <i className="fas fa-arrow-left"></i>
           </button>
-          <div className="hidden sm:block">
+          <div className="md:block text-right md:text-left">
             <h2 className="text-sm font-black text-white">{state?.jobRole}</h2>
             <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest">{state?.region} Market</p>
           </div>
         </div>
         
-        <div className="flex items-center space-x-3">
-          <div className="flex items-center space-x-2 bg-emerald-500/10 px-4 py-2 rounded-full border border-emerald-500/20 mr-4 hidden md:flex">
+        <div className="flex items-center space-x-3 w-full md:w-auto justify-end">
+          <div className="hidden lg:flex items-center space-x-2 bg-emerald-500/10 px-4 py-2 rounded-full border border-emerald-500/20 mr-4">
              <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
              <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Live Studio Link Active</span>
           </div>
           <button 
             onClick={handleFinish} 
-            className="px-8 py-3.5 bg-white text-slate-950 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-50 shadow-xl active:scale-95 transition-all"
+            className="w-full md:w-auto px-8 py-3.5 bg-white text-slate-950 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-50 shadow-xl active:scale-95 transition-all"
           >
             Finish & Analyze
           </button>
         </div>
       </div>
 
-      <div className="flex-grow grid grid-cols-1 lg:grid-cols-12 gap-8 lg:overflow-hidden min-h-0">
+      {/* Main Grid: Changed lg:overflow-hidden to allow scrolling on mobile if needed */}
+      <div className="flex-grow grid grid-cols-1 lg:grid-cols-12 gap-8 min-h-0 lg:overflow-hidden overflow-y-auto pb-20 lg:pb-0">
         
         {/* Main Stage */}
-        <div className="lg:col-span-8 flex flex-col space-y-8 h-full">
+        <div className="lg:col-span-8 flex flex-col space-y-8 min-h-[500px] lg:h-full">
           <div className="flex-grow bg-slate-900 rounded-[3.5rem] border border-slate-800/50 relative overflow-hidden flex flex-col items-center justify-center p-8 shadow-inner">
             <div className="absolute inset-0 pattern-overlay opacity-[0.05]"></div>
             
-            {/* Visualizer Background */}
+            {/* Visualizer Background: Resized for mobile w-64, desktop w-96 */}
             <div className="absolute inset-0 flex items-center justify-center opacity-20">
-               <div className={`w-96 h-96 rounded-full blur-[100px] transition-all duration-1000 ${activeSpeaker === 'Interviewer' ? 'bg-blue-600 scale-110' : activeSpeaker === 'Candidate' ? 'bg-emerald-600 scale-125' : 'bg-slate-800 scale-100'}`}></div>
+               <div className={`w-64 h-64 md:w-96 md:h-96 rounded-full blur-[80px] md:blur-[100px] transition-all duration-1000 ${activeSpeaker === 'Interviewer' ? 'bg-blue-600 scale-110' : activeSpeaker === 'Candidate' ? 'bg-emerald-600 scale-125' : 'bg-slate-800 scale-100'}`}></div>
             </div>
 
-            <div className="grid grid-cols-2 gap-12 md:gap-32 w-full max-w-3xl relative z-10">
-              <div className="flex flex-col items-center space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-32 w-full max-w-3xl relative z-10">
+              <div className="flex flex-col items-center space-y-4 md:space-y-6">
                 <div className={`w-32 h-32 md:w-44 md:h-44 rounded-[3rem] flex items-center justify-center transition-all duration-1000 border-4 transform ${activeSpeaker === 'Interviewer' ? 'bg-blue-600/10 border-blue-500 shadow-[0_0_60px_rgba(59,130,246,0.25)] scale-110' : 'bg-slate-950 border-slate-800/50 opacity-30'}`}>
                   <i className={`fas fa-user-tie text-4xl md:text-6xl ${activeSpeaker === 'Interviewer' ? 'text-blue-400' : 'text-slate-700'}`}></i>
                 </div>
@@ -374,7 +400,7 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
                 </div>
               </div>
 
-              <div className="flex flex-col items-center space-y-6">
+              <div className="flex flex-col items-center space-y-4 md:space-y-6">
                 <div className={`w-32 h-32 md:w-44 md:h-44 rounded-[3rem] flex items-center justify-center transition-all duration-1000 border-4 transform ${activeSpeaker === 'Candidate' ? 'bg-emerald-600/10 border-emerald-500 shadow-[0_0_60px_rgba(16,185,129,0.25)] scale-110' : 'bg-slate-950 border-slate-800/50 opacity-30'}`}>
                    <div className="relative">
                       <i className={`fas fa-user text-4xl md:text-6xl ${activeSpeaker === 'Candidate' ? 'text-emerald-400' : 'text-slate-700'}`}></i>
@@ -392,8 +418,8 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
               </div>
             </div>
 
-            <div className="absolute bottom-12 left-10 right-10 text-center max-w-4xl mx-auto">
-               <p className="text-slate-100 text-lg md:text-2xl font-medium leading-relaxed drop-shadow-2xl">
+            <div className="absolute bottom-12 left-6 right-6 md:left-10 md:right-10 text-center max-w-4xl mx-auto">
+               <p className="text-slate-100 text-base md:text-2xl font-medium leading-relaxed drop-shadow-2xl">
                  {currentOutputText || currentInputText || 'The studio is quiet. Begin speaking whenever you are ready...'}
                </p>
             </div>

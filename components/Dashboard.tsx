@@ -42,28 +42,28 @@ const Dashboard: React.FC<{ user: UserProfile }> = ({ user }) => {
   };
 
   return (
-    <div className="space-y-8 animate-fade-in">
+    <div className="space-y-8 animate-fade-in pb-12">
       {/* Professional Hero Section */}
-      <div id="welcome-hero" className="bg-emerald-600 rounded-3xl p-8 md:p-12 text-white relative overflow-hidden shadow-2xl">
+      <div id="welcome-hero" className="bg-emerald-600 rounded-3xl p-6 md:p-12 text-white relative overflow-hidden shadow-2xl">
         <div className="absolute inset-0 pattern-overlay"></div>
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 blur-[80px] rounded-full translate-x-1/2 -translate-y-1/2"></div>
         
-        <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
-          <div className="max-w-xl text-center md:text-left">
-            <h1 className="text-4xl md:text-5xl font-extrabold mb-4 leading-tight">
+        <div className="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-8">
+          <div className="max-w-xl text-center lg:text-left w-full lg:w-auto">
+            <h1 className="text-3xl md:text-5xl font-extrabold mb-4 leading-tight">
               Welcome back, {user.name.split(' ')[0]}!
             </h1>
-            <p className="text-emerald-100 text-lg mb-8 opacity-90">
+            <p className="text-emerald-100 text-sm md:text-lg mb-8 opacity-90">
               {user.history.length > 0 
                 ? `Last performance: ${lastSession.score}%. Keep that momentum for your ${lastSession.role} target!`
                 : "Your global career journey starts here. Launch your first mock interview."}
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
+            <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start w-full">
               <Tooltip text="Begin a fresh analysis & mock session">
                 <button 
                   id="start-prep-btn"
                   onClick={startFreshSession}
-                  className="inline-flex items-center justify-center space-x-2 bg-white text-emerald-600 px-8 py-4 rounded-xl font-bold hover:bg-emerald-50 transition-all transform hover:scale-105 shadow-xl active:scale-95 w-full sm:w-auto"
+                  className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 bg-white text-emerald-600 px-8 py-4 rounded-xl font-bold hover:bg-emerald-50 transition-all transform hover:scale-105 shadow-xl active:scale-95"
                 >
                   <i className="fas fa-plus-circle text-sm"></i>
                   <span>Start New Prep</span>
@@ -72,7 +72,7 @@ const Dashboard: React.FC<{ user: UserProfile }> = ({ user }) => {
               {user.lastSessionState && (
                 <button 
                   onClick={resumePrep}
-                  className="inline-flex items-center justify-center space-x-2 bg-emerald-700 text-white px-8 py-4 rounded-xl font-bold hover:bg-emerald-800 transition-all border border-emerald-500/30 active:scale-95 w-full sm:w-auto"
+                  className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 bg-emerald-700 text-white px-8 py-4 rounded-xl font-bold hover:bg-emerald-800 transition-all border border-emerald-500/30 active:scale-95"
                 >
                   <i className="fas fa-redo text-sm"></i>
                   <span>Resume Studio</span>
@@ -81,7 +81,7 @@ const Dashboard: React.FC<{ user: UserProfile }> = ({ user }) => {
             </div>
           </div>
           
-          <div id="competency-index" className="flex-shrink-0 bg-emerald-700/50 backdrop-blur-md p-6 rounded-2xl border border-white/20 min-w-[240px]">
+          <div id="competency-index" className="w-full lg:w-auto flex-shrink-0 bg-emerald-700/50 backdrop-blur-md p-6 rounded-2xl border border-white/20 min-w-[240px]">
              <div className="text-center mb-4">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-200">Competency Index</p>
                 <p className="text-5xl font-black text-white">
@@ -107,7 +107,7 @@ const Dashboard: React.FC<{ user: UserProfile }> = ({ user }) => {
 
       {/* Progress Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div id="performance-trend" className="lg:col-span-2 bg-slate-900/50 p-8 rounded-2xl border border-slate-800/50">
+        <div id="performance-trend" className="lg:col-span-2 bg-slate-900/50 p-6 md:p-8 rounded-2xl border border-slate-800/50">
           <div className="flex items-center justify-between mb-8">
             <div>
               <h2 className="text-xl font-bold text-slate-100">Performance Trend</h2>
@@ -147,7 +147,7 @@ const Dashboard: React.FC<{ user: UserProfile }> = ({ user }) => {
           </div>
         </div>
 
-        <div className="bg-slate-900/50 p-8 rounded-2xl border border-slate-800/50 flex flex-col">
+        <div className="bg-slate-900/50 p-6 md:p-8 rounded-2xl border border-slate-800/50 flex flex-col">
           <h2 className="text-xl font-bold mb-6 text-slate-100">Recent Sessions</h2>
           <div className="space-y-4 flex-grow overflow-y-auto max-h-[300px] pr-2">
             {user.history.length > 0 ? (
@@ -180,7 +180,7 @@ const Dashboard: React.FC<{ user: UserProfile }> = ({ user }) => {
 
       {/* Market Recommendations */}
       {user.history.length > 0 && (
-        <div className="bg-slate-900/50 p-8 rounded-2xl border border-slate-800/50">
+        <div className="bg-slate-900/50 p-6 md:p-8 rounded-2xl border border-slate-800/50">
           <h2 className="text-xl font-bold mb-6 text-slate-100">AI Career Insights</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="p-6 bg-blue-900/10 border border-blue-500/20 rounded-2xl">
