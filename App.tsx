@@ -7,7 +7,6 @@ import PreparationFlow from './components/PreparationFlow';
 import InterviewRoom from './components/InterviewRoom';
 import Pricing from './components/Pricing';
 import Auth from './components/Auth';
-import OnboardingTour from './components/OnboardingTour';
 import { UserProfile, SubscriptionTier, InterviewResult } from './types';
 import { createChatSession } from './services/geminiService';
 
@@ -222,7 +221,7 @@ const App: React.FC = () => {
           <Auth onLogin={handleLogin} />
         ) : (
           <>
-            <Header user={user} onLogout={handleLogout} onRestartTour={() => updateUserInfo({ hasCompletedOnboarding: false })} />
+            <Header user={user} onLogout={handleLogout} />
             <main className="flex-grow container mx-auto px-4 py-4 md:py-8 max-w-6xl">
               <Routes>
                 <Route path="/" element={<Dashboard user={user} />} />
@@ -235,7 +234,6 @@ const App: React.FC = () => {
             </main>
             <CornerCelebration user={user} />
             <AIChatAssistant />
-            {!user.hasCompletedOnboarding && <OnboardingTour onComplete={() => updateUserInfo({ hasCompletedOnboarding: true })} />}
             <footer className="bg-slate-900 border-t border-slate-800 py-8 mt-auto">
               <div className="container mx-auto px-6 flex flex-col md:flex-row items-center justify-between text-slate-500 text-[10px] font-bold uppercase tracking-widest gap-4">
                 <p>&copy; {new Date().getFullYear()} HirePrep AI. Empowering African Talent.</p>

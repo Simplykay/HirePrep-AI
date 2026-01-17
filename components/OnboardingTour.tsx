@@ -160,13 +160,6 @@ const OnboardingTour: React.FC<OnboardingTourProps> = ({ onComplete }) => {
         className="absolute bg-slate-900 border border-slate-800 p-7 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] w-72 pointer-events-auto animate-slide-up ring-1 ring-white/5"
         style={getCardStyle()}
       >
-        <div className="flex items-center space-x-2 mb-4">
-          <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]"></div>
-          <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">
-            Guide {currentStep + 1} of {steps.length}
-          </span>
-        </div>
-        
         <h3 className="text-lg font-black text-white mb-2 leading-tight">{step.title}</h3>
         <p className="text-xs text-slate-400 leading-relaxed mb-8">{step.content}</p>
         

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { UserProfile } from '../types';
 import Logo from './Logo';
 
@@ -14,44 +14,10 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const googleInitRef = useRef(false);
 
-  useEffect(() => {
-    const initGoogle = () => {
-      if ((window as any).google && (window as any).google.accounts && !googleInitRef.current) {
-        (window as any).google.accounts.id.initialize({
-          client_id: "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com",
-          callback: handleGoogleCredentialResponse
-        });
-        const buttonDiv = document.getElementById("googleSignInButton");
-        if (buttonDiv) {
-          (window as any).google.accounts.id.renderButton(
-            buttonDiv,
-            { 
-              theme: "filled_black", 
-              size: "large", 
-              width: buttonDiv.offsetWidth || 350,
-              text: "continue_with" 
-            }
-          );
-          googleInitRef.current = true;
-        }
-      }
-    };
-
-    // Attempt immediately and then periodically until successful or timeout
-    initGoogle();
-    const interval = setInterval(initGoogle, 1000);
-    const timeout = setTimeout(() => clearInterval(interval), 10000);
-
-    return () => {
-      clearInterval(interval);
-      clearTimeout(timeout);
-    };
-  }, []);
-
-  const handleGoogleCredentialResponse = (response: any) => {
+  const simulateGoogleLogin = () => {
     setLoading(true);
+    // Simulate OAuth network delay
     setTimeout(() => {
       onLogin({
         name: 'Google User',
@@ -63,7 +29,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
         avatarUrl: 'https://ui-avatars.com/api/?name=Google+User&background=random&color=fff'
       });
       setLoading(false);
-    }, 1000);
+    }, 1500);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -241,7 +207,15 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
           </div>
 
           <div className="flex justify-center min-h-[44px]">
-            <div id="googleSignInButton" className="overflow-hidden rounded-xl w-full flex justify-center"></div>
+             <button
+              type="button"
+              onClick={simulateGoogleLogin}
+              disabled={loading}
+              className="w-full py-4 bg-white text-slate-900 rounded-2xl font-black uppercase tracking-[0.1em] text-[10px] hover:bg-slate-100 transition-all flex items-center justify-center space-x-3 shadow-xl active:scale-95 disabled:opacity-70"
+            >
+              <i className="fab fa-google text-base"></i>
+              <span>Continue with Google</span>
+            </button>
           </div>
 
           <p className="text-center text-xs text-slate-500">

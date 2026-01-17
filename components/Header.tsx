@@ -7,10 +7,9 @@ import Logo from './Logo';
 interface HeaderProps {
   user: UserProfile;
   onLogout: () => void;
-  onRestartTour?: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ user, onLogout, onRestartTour }) => {
+const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
   const location = useLocation();
   const [showDropdown, setShowDropdown] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
@@ -115,13 +114,6 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout, onRestartTour }) => {
                     <i className="fas fa-columns text-slate-500 w-5 text-center"></i>
                     <span>Overview</span>
                   </Link>
-                  <button 
-                    onClick={() => { setShowDropdown(false); onRestartTour?.(); }}
-                    className="w-full flex items-center space-x-3 px-4 py-3 rounded-2xl text-xs font-bold text-slate-300 hover:bg-slate-800 hover:text-white transition-all"
-                  >
-                    <i className="fas fa-route text-blue-500 w-5 text-center"></i>
-                    <span>Restart Tour</span>
-                  </button>
                   <Link 
                     to="/pricing" 
                     onClick={() => setShowDropdown(false)}

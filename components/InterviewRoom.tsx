@@ -435,6 +435,36 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
              </div>
              
              <div className="p-8 space-y-10 overflow-y-auto">
+                {/* Mic Input Level - Visualizer */}
+                <div className="space-y-4">
+                   <div className="flex justify-between items-end">
+                      <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Microphone Input</span>
+                      <div className="flex items-center space-x-2">
+                        <div className={`w-2 h-2 rounded-full ${voiceVolume > 5 ? 'bg-emerald-500 animate-pulse' : 'bg-slate-700'}`}></div>
+                        <span className="text-[10px] font-bold text-slate-400">{voiceVolume > 5 ? 'Active' : 'Silent'}</span>
+                      </div>
+                   </div>
+                   <div className="flex items-end justify-between space-x-0.5 h-10 bg-slate-950/50 rounded-xl p-2 border border-slate-800/50">
+                      {[...Array(30)].map((_, i) => {
+                         const isActive = i < (voiceVolume / 100) * 30; 
+                         return (
+                           <div 
+                             key={i} 
+                             className={`w-full rounded-sm transition-all duration-75 ${
+                               isActive 
+                                 ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' 
+                                 : 'bg-slate-800/50'
+                             }`}
+                             style={{ 
+                               height: isActive ? `${30 + Math.random() * 70}%` : '15%',
+                               opacity: isActive ? 1 : 0.3
+                             }}
+                           ></div>
+                         );
+                      })}
+                   </div>
+                </div>
+
                 {/* WPM Metric */}
                 <div className="space-y-4">
                    <div className="flex justify-between items-end">
@@ -456,9 +486,18 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
                       <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Filler Words</span>
                       <span className={`text-sm font-black ${fillerCount > 5 ? 'text-red-400' : 'text-slate-300'}`}>{fillerCount}</span>
                    </div>
+                   
+                   {/* Severity Bar */}
+                   <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden flex">
+                      <div className={`h-full transition-all duration-500 ${fillerCount === 0 ? 'bg-emerald-500' : fillerCount < 5 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${Math.min(100, (fillerCount / 10) * 100)}%` }}></div>
+                   </div>
+
                    <div className="flex flex-wrap gap-2">
                       {detectedFillers.length > 0 ? detectedFillers.map(f => (
-                        <span key={f} className="px-2.5 py-1 bg-slate-800 border border-slate-700 rounded-lg text-[10px] font-bold text-slate-400 uppercase">{f}</span>
+                        <span key={f} className="px-2.5 py-1 bg-slate-800 border border-slate-700 rounded-lg text-[10px] font-bold text-slate-400 uppercase flex items-center space-x-1">
+                            <i className="fas fa-exclamation-circle text-amber-500/50 text-[9px]"></i>
+                            <span>{f}</span>
+                        </span>
                       )) : <p className="text-[10px] text-slate-700 italic">No fillers detected yet. Great job!</p>}
                    </div>
                 </div>
