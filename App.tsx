@@ -11,6 +11,17 @@ import UpgradeModal from './components/UpgradeModal';
 import { UserProfile, SubscriptionTier, InterviewResult } from './types';
 import { createChatSession } from './services/geminiService';
 
+// ScrollToTop Component
+const ScrollToTop = () => {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+
+  return null;
+};
+
 // Global Chatbot UI
 const AIChatAssistant: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -206,6 +217,7 @@ const App: React.FC = () => {
 
   return (
     <HashRouter>
+      <ScrollToTop />
       <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100">
         {!user ? (
           <Auth onLogin={handleLogin} />

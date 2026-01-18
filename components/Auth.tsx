@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect, useRef } from 'react';
-import { UserProfile } from '../types';
+import { UserProfile, SubscriptionTier } from '../types';
 import Logo from './Logo';
 
 interface AuthProps {
@@ -228,7 +227,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
             email,
             password, // In a real app, this would be hashed!
             isPremium: false,
-            subscriptionTier: 'Free',
+            subscriptionTier: 'Free' as SubscriptionTier,
             interviewsCompleted: 0,
             history: []
           };

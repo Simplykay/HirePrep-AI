@@ -30,6 +30,8 @@ const Pricing: React.FC<PricingProps> = ({ user, onUpgrade }) => {
     fetchRate();
   }, []);
 
+  const MONTHLY_PRICE = 15;
+
   const plans = [
     {
       tier: 'Free' as SubscriptionTier,
@@ -61,7 +63,7 @@ const Pricing: React.FC<PricingProps> = ({ user, onUpgrade }) => {
     {
       tier: 'Monthly' as SubscriptionTier,
       name: 'Pro Monthly',
-      usdPrice: 15,
+      usdPrice: MONTHLY_PRICE,
       period: '/mo',
       description: 'Consistent career growth.',
       features: [
@@ -83,7 +85,7 @@ const Pricing: React.FC<PricingProps> = ({ user, onUpgrade }) => {
         'Everything in Monthly',
         '1-on-1 AI mentorship',
         'Early beta access',
-        'Save ~20% yearly'
+        'Save over 55% yearly'
       ],
       color: 'amber',
     }
@@ -226,6 +228,26 @@ const Pricing: React.FC<PricingProps> = ({ user, onUpgrade }) => {
                 </div>
                 {plan.usdPrice !== 0 && (
                    <p className="text-[10px] font-bold text-slate-600 mt-1">Approx. ${plan.usdPrice} USD</p>
+                )}
+
+                {/* Yearly Plan Breakdown */}
+                {plan.tier === 'Yearly' && (
+                  <div className="mt-3 p-3 bg-slate-950/50 rounded-xl border border-slate-700/50 space-y-2">
+                    <div className="flex justify-between items-center border-b border-slate-800/50 pb-2">
+                      <span className="text-[10px] text-slate-400 font-bold">Monthly Eq.</span>
+                      <span className="text-xs font-black text-emerald-400">${(plan.usdPrice / 12).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-center pt-1">
+                      <div className="flex flex-col">
+                         <span className="text-[9px] text-slate-500">vs Pro Monthly</span>
+                         <span className="text-[8px] text-slate-600">(${MONTHLY_PRICE} × 12mo)</span>
+                      </div>
+                      <div className="text-right">
+                         <span className="text-[10px] text-red-400/60 line-through decoration-red-500/50 block">${MONTHLY_PRICE * 12}</span>
+                         <span className="text-[10px] text-emerald-500 font-bold block">You pay ${plan.usdPrice}</span>
+                      </div>
+                    </div>
+                  </div>
                 )}
               </div>
 

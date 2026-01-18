@@ -297,7 +297,7 @@ export async function decodeAudioData(
   return buffer;
 }
 
-export const connectLiveSession = (callbacks: any, systemInstruction: string) => {
+export const connectLiveSession = (callbacks: any, systemInstruction: string, voiceName: string = 'Zephyr') => {
   const apiKey = process.env.API_KEY || '';
   const ai = new GoogleGenAI({ apiKey });
   return ai.live.connect({
@@ -306,7 +306,7 @@ export const connectLiveSession = (callbacks: any, systemInstruction: string) =>
     config: {
       responseModalities: [Modality.AUDIO],
       speechConfig: {
-        voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } },
+        voiceConfig: { prebuiltVoiceConfig: { voiceName } },
       },
       inputAudioTranscription: {}, 
       outputAudioTranscription: {},

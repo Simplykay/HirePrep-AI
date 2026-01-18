@@ -16,6 +16,14 @@ const FILLER_WORDS = ['um', 'uh', 'like', 'so', 'actually', 'basically', 'kind o
 const MAX_SESSION_DURATION = 1800; // 30 minutes in seconds
 const WARNING_THRESHOLD = 300; // Warning when 5 minutes remain
 
+const INTERVIEWERS = [
+  { name: 'Sarah', voice: 'Aoede', style: 'Empathetic, encouraging, and behavioral focused', role: 'HR Director' },
+  { name: 'David', voice: 'Fenrir', style: 'Direct, technically rigorous, and precise', role: 'Senior Engineering Manager' },
+  { name: 'Elena', voice: 'Kore', style: 'Calm, culturally observant, and strategic', role: 'Talent Acquisition Lead' },
+  { name: 'Marcus', voice: 'Charon', style: 'Strategic, executive, and big-picture focused', role: 'VP of Operations' },
+  { name: 'Puck', voice: 'Puck', style: 'Energetic, creative, and fast-paced', role: 'Product Lead' },
+];
+
 const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) => void }> = ({ user, onFinish }) => {
   const navigate = useNavigate();
   const [state, setState] = useState<InterviewState | null>(null);
@@ -24,6 +32,7 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
   const [isReady, setIsReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<FeedbackData | null>(null);
+  const [interviewer, setInterviewer] = useState(INTERVIEWERS[0]);
   
   // Timer State
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -68,6 +77,14 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
   const currentOutputTextRef = useRef('');
   const currentInputTextRef = useRef('');
   const turnStartTimeRef = useRef<number | null>(null);
+
+  // Cycle Interviewer on Mount
+  useEffect(() => {
+    const lastIdx = parseInt(localStorage.getItem('hireprep_last_interviewer_idx') || '-1');
+    const nextIdx = (lastIdx + 1) % INTERVIEWERS.length;
+    setInterviewer(INTERVIEWERS[nextIdx]);
+    localStorage.setItem('hireprep_last_interviewer_idx', nextIdx.toString());
+  }, []);
 
   useEffect(() => {
     const data = localStorage.getItem(ACTIVE_SESSION_KEY) || sessionStorage.getItem('current_interview');
@@ -303,7 +320,15 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
           
           // Connect processed audio to script processor
           gainControl.connect(scriptProcessor);
-          scriptProcessor.connect(ctx.destination); 
+          scriptProcessor.connect(ctx.destination);
+          
+          // TRIGGER INITIAL GREETING AUTOMATICALLY
+          if (liveSessionPromiseRef.current) {
+             liveSessionPromiseRef.current.then((session: any) => {
+                const introPrompt = `[System Event: The candidate ${firstName} has entered the room. Immediately introduce yourself as ${interviewer.name}, the ${interviewer.role}. Your persona is ${interviewer.style}. Welcome them warmly and ask the first question based on the job context.]`;
+                session.sendRealtimeInput({ text: introPrompt });
+             });
+          }
         },
         onmessage: async (message: any) => {
           if (message.serverContent?.outputTranscription) {
@@ -374,13 +399,14 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
         }
       };
 
-      const sysInstr = `Persona: You are a world-class senior hiring manager with an incredibly smooth, calm, and reassuring voice. You are here to coach the candidate to success. You speak clearly and warmly. 
+      const sysInstr = `Persona: You are ${interviewer.name}, a ${interviewer.role} with a voice that matches the '${interviewer.voice}' config. Your style is ${interviewer.style}. 
+      You are here to coach the candidate to success. You speak clearly and warmly. 
       IMPORTANT: The candidate's name is ${firstName}. Use their first name naturally during the conversation (e.g., "Hello ${firstName}", "Great point, ${firstName}") to create a personal, professional, and reassuring atmosphere.
       Market context: ${state.region}. Role: ${state.jobRole}.
       Rigor: Even though your voice is kind, your questions are insightful and high-level.
-      Interactions: Wait for the candidate to finish their turn. If they say '[The candidate has finished]', acknowledge it warmly and move to the next question.`;
+      Interactions: LISTEN ACTIVELY. Wait for the candidate to fully finish their thought before responding. If they pause briefly, do not interrupt immediately. If they say '[The candidate has finished]', acknowledge it warmly and move to the next question.`;
       
-      liveSessionPromiseRef.current = connectLiveSession(callbacks, sysInstr);
+      liveSessionPromiseRef.current = connectLiveSession(callbacks, sysInstr, interviewer.voice);
     } catch (err: any) {
       console.error(err);
       setError("Microphone access required. Ensure you are on a secure (HTTPS) connection.");
@@ -460,6 +486,18 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
         <p className="text-slate-400 max-w-sm mb-12 leading-relaxed text-sm">
           Connect to your private, high-fidelity studio. The AI Hiring Manager is ready to provide real-time coaching.
         </p>
+        
+        {/* Interviewer Preview */}
+        <div className="mb-8 p-4 bg-slate-900 rounded-2xl border border-slate-800 flex items-center space-x-4 max-w-sm mx-auto">
+            <div className="w-12 h-12 bg-blue-900/30 rounded-full flex items-center justify-center text-blue-400">
+               <i className="fas fa-user-tie"></i>
+            </div>
+            <div className="text-left">
+               <p className="text-[10px] uppercase font-black text-slate-500 tracking-widest">Interviewer Assigned</p>
+               <p className="text-sm font-bold text-white">{interviewer.name} <span className="text-slate-500 font-normal">- {interviewer.role}</span></p>
+            </div>
+        </div>
+
         {error && <div className="mb-8 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-400 text-xs font-bold">{error}</div>}
         <div className="flex flex-col space-y-4 w-full max-w-xs">
           <button 
@@ -480,7 +518,7 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
         <div className="relative mb-10">
           <div className="w-20 h-20 border-4 border-slate-800 border-t-emerald-500 rounded-full animate-spin"></div>
         </div>
-        <h2 className="text-2xl font-black text-white mb-2">{finishing ? 'Generating Critical Insights' : 'Calibrating AI Persona'}</h2>
+        <h2 className="text-2xl font-black text-white mb-2">{finishing ? 'Generating Critical Insights' : `Connecting with ${interviewer.name}`}</h2>
         <p className="text-slate-500 text-[9px] font-black uppercase tracking-[0.3em] animate-pulse">Processing Neural Streams...</p>
       </div>
     );
@@ -548,8 +586,8 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
                   <i className={`fas fa-user-tie text-4xl md:text-6xl ${activeSpeaker === 'Interviewer' ? 'text-blue-400' : 'text-slate-700'}`}></i>
                 </div>
                 <div className="text-center">
-                   <p className={`font-black text-[10px] uppercase tracking-[0.2em] mb-1 ${activeSpeaker === 'Interviewer' ? 'text-blue-400' : 'text-slate-600'}`}>Senior Recruiter</p>
-                   {activeSpeaker === 'Interviewer' && <p className="text-[10px] text-blue-300/60 font-medium">Speaking...</p>}
+                   <p className={`font-black text-[10px] uppercase tracking-[0.2em] mb-1 ${activeSpeaker === 'Interviewer' ? 'text-blue-400' : 'text-slate-600'}`}>{interviewer.name}</p>
+                   {activeSpeaker === 'Interviewer' && <p className="text-[10px] text-blue-300/60 font-medium">{interviewer.role} Speaking...</p>}
                 </div>
               </div>
 
