@@ -13,6 +13,8 @@ import FeedbackReport from './FeedbackReport';
 
 const ACTIVE_SESSION_KEY = 'hireprep_active_session';
 const FILLER_WORDS = ['um', 'uh', 'like', 'so', 'actually', 'basically', 'kind of'];
+const MAX_SESSION_DURATION = 1800; // 30 minutes in seconds
+const WARNING_THRESHOLD = 300; // Warning when 5 minutes remain
 
 const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) => void }> = ({ user, onFinish }) => {
   const navigate = useNavigate();
@@ -22,6 +24,9 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
   const [isReady, setIsReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<FeedbackData | null>(null);
+  
+  // Timer State
+  const [elapsedTime, setElapsedTime] = useState(0);
   
   // Voice Session State
   const [activeSpeaker, setActiveSpeaker] = useState<'Interviewer' | 'Candidate' | null>(null);
@@ -41,7 +46,11 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
   const [detectedFillers, setDetectedFillers] = useState<string[]>([]);
   const [wpm, setWpm] = useState(0);
   const [voiceVolume, setVoiceVolume] = useState(0);
-  const [voiceClarity, setVoiceClarity] = useState(90); 
+  const [voiceClarity, setVoiceClarity] = useState(90);
+  const [clarityWarning, setClarityWarning] = useState<string | null>(null);
+  
+  // Recording State
+  const [recordedAudioUrl, setRecordedAudioUrl] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const outputAudioContextRef = useRef<AudioContext | null>(null);
@@ -50,6 +59,11 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
   const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
   const analyzerRef = useRef<AnalyserNode | null>(null);
   const requestRef = useRef<number>(0);
+
+  // Recording Refs
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const mixedOutputRef = useRef<MediaStreamAudioDestinationNode | null>(null);
 
   const currentOutputTextRef = useRef('');
   const currentInputTextRef = useRef('');
@@ -83,6 +97,17 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
     }
   }, [transcriptions]);
 
+  // Session Timer
+  useEffect(() => {
+    let interval: any;
+    if (isReady && !finishing) {
+      interval = setInterval(() => {
+        setElapsedTime(prev => prev + 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isReady, finishing]);
+
   // Real-time Filler Word & WPM Calculation
   useEffect(() => {
     if (currentInputText) {
@@ -108,6 +133,11 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
       try { source.stop(); } catch (e) {}
     });
     sourcesRef.current.clear();
+    
+    // Stop Recorder
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
   };
 
   const handleExit = () => {
@@ -144,6 +174,25 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
       
       outputAudioContextRef.current = ctx;
 
+      // --- RECORDER SETUP: Create a destination node to mix mic and AI audio ---
+      const mixedOutput = ctx.createMediaStreamDestination();
+      mixedOutputRef.current = mixedOutput;
+      
+      const recorder = new MediaRecorder(mixedOutput.stream);
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
+      recorder.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const url = URL.createObjectURL(blob);
+        setRecordedAudioUrl(url);
+      };
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+      // -----------------------------------------------------------------------
+
       // Mobile Audio Constraints
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
@@ -155,9 +204,34 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
       });
       
       const sourceNode = ctx.createMediaStreamSource(stream);
+
+      // --- Advanced Audio Processing Chain ---
+      
+      // 1. High-Pass Filter (Noise Reduction)
+      const noiseFilter = ctx.createBiquadFilter();
+      noiseFilter.type = 'highpass';
+      noiseFilter.frequency.value = 85; 
+      noiseFilter.Q.value = 0.707;
+
+      // 2. Dynamics Compressor (Adaptive Gain Control)
+      const gainControl = ctx.createDynamicsCompressor();
+      gainControl.threshold.value = -24; 
+      gainControl.knee.value = 30;       
+      gainControl.ratio.value = 12;      
+      gainControl.attack.value = 0.003;  
+      gainControl.release.value = 0.25;  
+
+      // Connect the Graph: Source -> Filter -> Compressor
+      sourceNode.connect(noiseFilter);
+      noiseFilter.connect(gainControl);
+
+      // ROUTING FOR RECORDING: Connect Mic input to the mixed recording destination
+      sourceNode.connect(mixedOutput); 
+      
       const analyzer = ctx.createAnalyser();
       analyzer.fftSize = 256;
-      sourceNode.connect(analyzer);
+      // Connect processed audio to analyzer for accurate visualizer
+      gainControl.connect(analyzer);
       analyzerRef.current = analyzer;
 
       const bufferLength = analyzer.frequencyBinCount;
@@ -166,10 +240,42 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
       const updateAnalysis = () => {
         if (!analyzerRef.current) return;
         analyzerRef.current.getByteFrequencyData(dataArray);
+        
         let sum = 0;
         for(let i = 0; i < bufferLength; i++) sum += dataArray[i];
-        const volume = sum / bufferLength;
-        setVoiceVolume(volume);
+        const volume = sum / bufferLength; // Raw average volume (0-255)
+        
+        // Normalize for Display (0-100)
+        const displayVol = Math.min(100, (volume / 255) * 400); 
+        setVoiceVolume(displayVol);
+
+        // Clarity Filter Logic
+        let targetClarity = 100;
+        let warning = null;
+        
+        // Check signal quality if there is significant input
+        if (displayVol > 5) {
+          if (displayVol < 15) {
+            targetClarity = 60;
+            warning = "Speak clearer or move closer";
+          } else if (displayVol > 95) {
+            targetClarity = 70;
+            warning = "Audio clipping, move back";
+          } else {
+            targetClarity = 100;
+          }
+        }
+
+        // Smooth Clarity Score Update
+        setVoiceClarity(prev => prev * 0.9 + targetClarity * 0.1);
+
+        // Update Warning (Hysteresis-like check to avoid flicker)
+        if (displayVol > 5 && targetClarity < 80) {
+           setClarityWarning(warning);
+        } else {
+           setClarityWarning(null);
+        }
+
         requestRef.current = requestAnimationFrame(updateAnalysis);
       };
       updateAnalysis();
@@ -182,30 +288,9 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
           const scriptProcessor = ctx.createScriptProcessor(4096, 1, 1);
           scriptProcessor.onaudioprocess = (e: any) => {
             const inputData = e.inputBuffer.getChannelData(0);
-            const sourceRate = ctx.sampleRate;
-            const targetRate = 16000;
-            
-            // Downsample audio if system rate > 16000Hz (common 48kHz on mobile)
-            let pcmData: Int16Array;
-            
-            if (sourceRate !== targetRate) {
-              const ratio = sourceRate / targetRate;
-              const newLength = Math.ceil(inputData.length / ratio);
-              pcmData = new Int16Array(newLength);
-              for (let i = 0; i < newLength; i++) {
-                const offset = Math.floor(i * ratio);
-                const val = inputData[Math.min(offset, inputData.length - 1)]; 
-                pcmData[i] = Math.max(-1, Math.min(1, val)) * 32767;
-              }
-            } else {
-              pcmData = new Int16Array(inputData.length);
-              for (let i = 0; i < inputData.length; i++) {
-                pcmData[i] = Math.max(-1, Math.min(1, inputData[i])) * 32767;
-              }
-            }
-
+            // Downsampling logic for API (16kHz)
             const pcmBlob = {
-              data: encode(new Uint8Array(pcmData.buffer)),
+              data: encode(new Uint8Array(convertFloat32ToInt16(inputData).buffer)),
               mimeType: 'audio/pcm;rate=16000',
             };
             
@@ -215,8 +300,10 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
               }).catch(() => {});
             }
           };
-          sourceNode.connect(scriptProcessor);
-          scriptProcessor.connect(ctx.destination); // Necessary for script processor to run, but outputs silence by default
+          
+          // Connect processed audio to script processor
+          gainControl.connect(scriptProcessor);
+          scriptProcessor.connect(ctx.destination); 
         },
         onmessage: async (message: any) => {
           if (message.serverContent?.outputTranscription) {
@@ -258,13 +345,20 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
              for (const part of message.serverContent.modelTurn.parts) {
                if (part.inlineData?.data) {
                   const audioData = part.inlineData.data;
-                  // Ensure we use the current context time to schedule audio
                   nextStartTimeRef.current = Math.max(nextStartTimeRef.current, outputAudioContextRef.current.currentTime);
                   
                   const audioBuffer = await decodeAudioData(decode(audioData), outputAudioContextRef.current, 24000, 1);
                   const source = outputAudioContextRef.current.createBufferSource();
                   source.buffer = audioBuffer;
+                  
+                  // Connect AI Audio to Speakers
                   source.connect(outputAudioContextRef.current.destination);
+                  
+                  // ROUTING FOR RECORDING: Also connect AI Audio to the mixed recording destination
+                  if (mixedOutputRef.current) {
+                    source.connect(mixedOutputRef.current);
+                  }
+
                   source.addEventListener('ended', () => sourcesRef.current.delete(source));
                   source.start(nextStartTimeRef.current);
                   nextStartTimeRef.current += audioBuffer.duration;
@@ -294,10 +388,20 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
     }
   };
 
+  const convertFloat32ToInt16 = (buffer: Float32Array) => {
+    let l = buffer.length;
+    let buf = new Int16Array(l);
+    while (l--) {
+      buf[l] = Math.min(1, Math.max(-1, buffer[l])) * 0x7FFF;
+    }
+    return buf;
+  };
+
   const handleFinish = async () => {
     if (!state) return;
     setFinishing(true);
-    stopLiveSession();
+    stopLiveSession(); // This triggers recorder stop and sets recordedAudioUrl
+    
     try {
       const history = transcriptions.map(t => ({ role: t.role === 'Candidate' ? 'user' : 'model', text: t.text }));
       const report = await generateDetailedFeedback(state, history);
@@ -313,7 +417,8 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
           date: new Date().toISOString(),
           role: state.jobRole,
           score: report.score,
-          feedback: report
+          feedback: report,
+          transcript: history
         });
       }
     } catch (err) {
@@ -323,8 +428,26 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
     }
   };
 
+  const formatTime = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
+  const remainingTime = MAX_SESSION_DURATION - elapsedTime;
+  const isWarning = remainingTime <= WARNING_THRESHOLD && remainingTime > 0;
+  const isOvertime = remainingTime <= 0;
+
   if (feedback) {
-    return <FeedbackReport data={feedback} onReset={() => navigate('/')} />;
+    return (
+      <FeedbackReport 
+        data={feedback} 
+        role={state?.jobRole} 
+        onReset={() => navigate('/')} 
+        recordingUrl={recordedAudioUrl}
+        transcript={transcriptions}
+      />
+    );
   }
 
   if (!isReady && !loading) {
@@ -341,7 +464,7 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
         <div className="flex flex-col space-y-4 w-full max-w-xs">
           <button 
             onClick={initializeAudioAndStart} 
-            className="w-full py-5 bg-emerald-600 text-white rounded-2xl font-black uppercase tracking-[0.2em] text-xs hover:bg-emerald-500 shadow-2xl shadow-emerald-900/40 active:scale-95 transition-all"
+            className="w-full py-5 bg-emerald-600 text-white rounded-2xl font-black uppercase tracking-[0.2em] text-xs hover:bg-emerald-50 shadow-2xl shadow-emerald-900/40 active:scale-95 transition-all"
           >
             Enter Studio
           </button>
@@ -374,11 +497,25 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
           </button>
           <div className="md:block text-right md:text-left">
             <h2 className="text-sm font-black text-white">{state?.jobRole}</h2>
-            <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest">{state?.region} Market</p>
+            <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
+                <p className="text-[10px] text-red-400 font-bold uppercase tracking-widest">Recording Active</p>
+            </div>
           </div>
         </div>
         
         <div className="flex items-center space-x-3 w-full md:w-auto justify-end">
+          
+          {/* Timer - Subtle, changes color on warning/overtime */}
+          <div className={`flex items-center space-x-2 px-3 py-1.5 md:px-4 md:py-2 rounded-full border transition-all ${
+              isOvertime ? 'bg-red-500/10 border-red-500/30 text-red-400 animate-pulse' : 
+              isWarning ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' : 
+              'bg-slate-800/50 border-slate-700/50 text-slate-400'
+          } md:mr-2`}>
+              <i className="fas fa-clock text-[10px]"></i>
+              <span className="text-[10px] md:text-[11px] font-mono font-bold">{formatTime(elapsedTime)}</span>
+          </div>
+
           <div className="hidden lg:flex items-center space-x-2 bg-emerald-500/10 px-4 py-2 rounded-full border border-emerald-500/20 mr-4">
              <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
              <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Live Studio Link Active</span>
@@ -392,15 +529,15 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
         </div>
       </div>
 
-      {/* Main Grid: Changed lg:overflow-hidden to allow scrolling on mobile if needed */}
+      {/* Main Stage */}
       <div className="flex-grow grid grid-cols-1 lg:grid-cols-12 gap-8 min-h-0 lg:overflow-hidden overflow-y-auto pb-20 lg:pb-0">
         
-        {/* Main Stage */}
+        {/* Visualizer Area */}
         <div className="lg:col-span-8 flex flex-col space-y-8 min-h-[500px] lg:h-full">
           <div className="flex-grow bg-slate-900 rounded-[3.5rem] border border-slate-800/50 relative overflow-hidden flex flex-col items-center justify-center p-8 shadow-inner">
             <div className="absolute inset-0 pattern-overlay opacity-[0.05]"></div>
             
-            {/* Visualizer Background: Resized for mobile w-64, desktop w-96 */}
+            {/* Visualizer Background */}
             <div className="absolute inset-0 flex items-center justify-center opacity-20">
                <div className={`w-64 h-64 md:w-96 md:h-96 rounded-full blur-[80px] md:blur-[100px] transition-all duration-1000 ${activeSpeaker === 'Interviewer' ? 'bg-blue-600 scale-110' : activeSpeaker === 'Candidate' ? 'bg-emerald-600 scale-125' : 'bg-slate-800 scale-100'}`}></div>
             </div>
@@ -416,7 +553,16 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
                 </div>
               </div>
 
-              <div className="flex flex-col items-center space-y-4 md:space-y-6">
+              <div className="flex flex-col items-center space-y-4 md:space-y-6 relative">
+                {/* Clarity Warning Tooltip */}
+                {clarityWarning && (
+                  <div className="absolute -top-16 left-1/2 -translate-x-1/2 bg-amber-500/90 text-white px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest whitespace-nowrap animate-bounce shadow-lg z-50">
+                     <i className="fas fa-exclamation-triangle mr-2"></i>
+                     {clarityWarning}
+                     <div className="absolute bottom-[-6px] left-1/2 -translate-x-1/2 border-l-4 border-r-4 border-t-6 border-l-transparent border-r-transparent border-t-amber-500/90"></div>
+                  </div>
+                )}
+                
                 <div className={`w-32 h-32 md:w-44 md:h-44 rounded-[3rem] flex items-center justify-center transition-all duration-1000 border-4 transform ${activeSpeaker === 'Candidate' ? 'bg-emerald-600/10 border-emerald-500 shadow-[0_0_60px_rgba(16,185,129,0.25)] scale-110' : 'bg-slate-950 border-slate-800/50 opacity-30'}`}>
                    <div className="relative">
                       <i className={`fas fa-user text-4xl md:text-6xl ${activeSpeaker === 'Candidate' ? 'text-emerald-400' : 'text-slate-700'}`}></i>
@@ -454,7 +600,9 @@ const InterviewRoom: React.FC<{ user: any, onFinish?: (result: InterviewResult) 
                 {/* Mic Input Level - Visualizer */}
                 <div className="space-y-4">
                    <div className="flex justify-between items-end">
-                      <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Microphone Input</span>
+                      <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">
+                        Microphone Input <span className="text-emerald-500 text-[9px] ml-1 opacity-70">(HD Enhanced)</span>
+                      </span>
                       <div className="flex items-center space-x-2">
                         <div className={`w-2 h-2 rounded-full ${voiceVolume > 5 ? 'bg-emerald-500 animate-pulse' : 'bg-slate-700'}`}></div>
                         <span className="text-[10px] font-bold text-slate-400">{voiceVolume > 5 ? 'Active' : 'Silent'}</span>

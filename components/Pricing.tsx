@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { UserProfile, SubscriptionTier } from '../types';
 
@@ -11,13 +11,30 @@ interface PricingProps {
 const Pricing: React.FC<PricingProps> = ({ user, onUpgrade }) => {
   const [selectedPlan, setSelectedPlan] = useState<any | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [exchangeRate, setExchangeRate] = useState<number>(1650); // Realistic fallback
+  const [isLiveRate, setIsLiveRate] = useState(false);
+
+  useEffect(() => {
+    const fetchRate = async () => {
+      try {
+        const response = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
+        const data = await response.json();
+        if (data && data.rates && data.rates.NGN) {
+          setExchangeRate(data.rates.NGN);
+          setIsLiveRate(true);
+        }
+      } catch (e) {
+        console.warn("Could not fetch live rates, using fallback.");
+      }
+    };
+    fetchRate();
+  }, []);
 
   const plans = [
     {
       tier: 'Free' as SubscriptionTier,
       name: 'Free Tier',
-      price: '0',
-      usdPrice: '0',
+      usdPrice: 0,
       period: '',
       description: 'Casual prep for students.',
       features: [
@@ -30,8 +47,7 @@ const Pricing: React.FC<PricingProps> = ({ user, onUpgrade }) => {
     {
       tier: 'Weekly' as SubscriptionTier,
       name: 'Weekly Sprint',
-      price: '2,500',
-      usdPrice: '5',
+      usdPrice: 5,
       period: '/wk',
       description: 'Intensive last-minute prep.',
       features: [
@@ -45,8 +61,7 @@ const Pricing: React.FC<PricingProps> = ({ user, onUpgrade }) => {
     {
       tier: 'Monthly' as SubscriptionTier,
       name: 'Pro Monthly',
-      price: '7,500',
-      usdPrice: '15',
+      usdPrice: 15,
       period: '/mo',
       description: 'Consistent career growth.',
       features: [
@@ -61,17 +76,43 @@ const Pricing: React.FC<PricingProps> = ({ user, onUpgrade }) => {
     {
       tier: 'Yearly' as SubscriptionTier,
       name: 'Yearly Legend',
-      price: '40,000',
-      usdPrice: '80',
+      usdPrice: 80,
       period: '/yr',
       description: 'The long-term career play.',
       features: [
         'Everything in Monthly',
         '1-on-1 AI mentorship',
         'Early beta access',
-        'Save ₦14,000 yearly'
+        'Save ~20% yearly'
       ],
       color: 'amber',
+    }
+  ];
+
+  const testimonials = [
+    {
+      name: "Chidinma O.",
+      role: "Product Designer",
+      location: "Lagos, Nigeria",
+      quote: "The AI interviewer caught that I was speaking too fast during technical explanations. Fixed it in a week and landed a remote role in London!",
+      avatar: "https://i.pravatar.cc/150?u=a042581f4e29026024d",
+      tier: "Monthly"
+    },
+    {
+      name: "Kwame A.",
+      role: "Backend Engineer",
+      location: "Accra, Ghana",
+      quote: "HirePrep's market insights for the US tech scene were spot on. The gap analysis showed me exactly what frameworks I was missing.",
+      avatar: "https://i.pravatar.cc/150?u=a042581f4e29026704d",
+      tier: "Weekly"
+    },
+    {
+      name: "Sarah M.",
+      role: "Data Scientist",
+      location: "Nairobi, Kenya",
+      quote: "I was struggling with behavioral questions. The STAR method coaching from the AI is incredible. It felt like a real hiring manager.",
+      avatar: "https://i.pravatar.cc/150?u=a04258114e29026302d",
+      tier: "Yearly"
     }
   ];
 
@@ -112,6 +153,14 @@ const Pricing: React.FC<PricingProps> = ({ user, onUpgrade }) => {
     }
   };
 
+  const formatPrice = (usd: number) => {
+    if (usd === 0) return '0';
+    // Round to nearest 50 for cleaner numbers
+    const raw = usd * exchangeRate;
+    const rounded = Math.ceil(raw / 50) * 50; 
+    return new Intl.NumberFormat('en-NG').format(rounded);
+  };
+
   return (
     <div className="py-8 space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="flex justify-start px-4">
@@ -121,9 +170,17 @@ const Pricing: React.FC<PricingProps> = ({ user, onUpgrade }) => {
         </Link>
       </div>
 
-      <div className="text-center space-y-4 max-w-2xl mx-auto">
+      <div className="text-center space-y-4 max-w-2xl mx-auto px-4">
         <h2 className="text-4xl font-bold text-slate-100 tracking-tight">Fuel Your Ambition</h2>
         <p className="text-slate-500 text-lg leading-relaxed">Choose a plan that matches your interview timeline. Secure payments supported globally.</p>
+        
+        {/* Live Rate Indicator */}
+        <div className="inline-flex items-center space-x-2 bg-slate-900/80 px-4 py-2 rounded-full border border-slate-800 mt-2">
+           <div className={`w-2 h-2 rounded-full ${isLiveRate ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`}></div>
+           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+              {isLiveRate ? 'Live Market Rate' : 'Estimated Rate'}: 1 USD ≈ ₦{new Intl.NumberFormat('en-NG').format(exchangeRate)}
+           </p>
+        </div>
         
         <div className="flex flex-wrap items-center justify-center gap-6 pt-4 grayscale opacity-40 hover:grayscale-0 transition-all duration-500">
           <div className="flex items-center space-x-1.5">
@@ -164,10 +221,10 @@ const Pricing: React.FC<PricingProps> = ({ user, onUpgrade }) => {
                 <p className="text-slate-500 text-xs mb-4 min-h-[32px]">{plan.description}</p>
                 <div className="flex items-baseline space-x-1">
                   <span className="text-xs font-bold text-slate-400">₦</span>
-                  <span className="text-3xl font-extrabold text-slate-100">{plan.price}</span>
+                  <span className="text-3xl font-extrabold text-slate-100">{formatPrice(plan.usdPrice)}</span>
                   <span className="text-slate-500 text-xs">{plan.period}</span>
                 </div>
-                {plan.usdPrice !== '0' && (
+                {plan.usdPrice !== 0 && (
                    <p className="text-[10px] font-bold text-slate-600 mt-1">Approx. ${plan.usdPrice} USD</p>
                 )}
               </div>
@@ -214,7 +271,7 @@ const Pricing: React.FC<PricingProps> = ({ user, onUpgrade }) => {
               <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex justify-between items-center">
                 <span className="text-sm font-medium text-slate-400">Total Amount</span>
                 <div className="text-right">
-                  <p className="text-xl font-bold text-white">₦{selectedPlan.price}</p>
+                  <p className="text-xl font-bold text-white">₦{formatPrice(selectedPlan.usdPrice)}</p>
                   <p className="text-xs text-slate-500">~ ${selectedPlan.usdPrice}.00 USD</p>
                 </div>
               </div>
@@ -276,6 +333,42 @@ const Pricing: React.FC<PricingProps> = ({ user, onUpgrade }) => {
           </div>
         </div>
       )}
+
+      {/* Testimonials Section */}
+      <div className="space-y-8">
+        <div className="text-center px-4">
+          <h3 className="text-2xl font-bold text-slate-100">Success Stories</h3>
+          <p className="text-slate-500 text-sm mt-2">Join elite professionals securing roles at top global companies.</p>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 px-4">
+          {testimonials.map((testimonial, idx) => (
+            <div key={idx} className="bg-slate-900/50 p-6 rounded-3xl border border-slate-800 hover:border-emerald-500/30 transition-all group">
+               <div className="flex items-center space-x-4 mb-4">
+                  <img src={testimonial.avatar} alt={testimonial.name} className="w-12 h-12 rounded-full border-2 border-slate-800" />
+                  <div>
+                     <p className="text-sm font-bold text-white">{testimonial.name}</p>
+                     <p className="text-[10px] text-slate-500 uppercase tracking-widest">{testimonial.role}</p>
+                     <p className="text-[10px] text-emerald-500 flex items-center">
+                        <i className="fas fa-map-marker-alt mr-1"></i> {testimonial.location}
+                     </p>
+                  </div>
+               </div>
+               <div className="mb-4">
+                  <p className="text-xs text-slate-300 leading-relaxed italic">"{testimonial.quote}"</p>
+               </div>
+               <div className="flex items-center justify-between pt-4 border-t border-slate-800/50">
+                  <div className="flex text-amber-500 text-[10px] space-x-0.5">
+                     <i className="fas fa-star"></i><i className="fas fa-star"></i><i className="fas fa-star"></i><i className="fas fa-star"></i><i className="fas fa-star"></i>
+                  </div>
+                  <span className="text-[9px] font-black uppercase text-slate-600 bg-slate-950 px-2 py-1 rounded-lg">
+                     {testimonial.tier} Plan
+                  </span>
+               </div>
+            </div>
+          ))}
+        </div>
+      </div>
 
       <div className="bg-slate-900 p-8 md:p-12 rounded-3xl max-w-4xl mx-auto border border-slate-800 shadow-xl relative overflow-hidden group">
         <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">

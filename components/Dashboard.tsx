@@ -1,7 +1,7 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { UserProfile, InterviewResult } from '../types';
+import { UserProfile, InterviewResult, SubscriptionTier } from '../types';
 import { CartesianGrid, Tooltip as ChartTooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis } from 'recharts';
 
 // Simple hover tooltip component
@@ -17,8 +17,17 @@ const Tooltip: React.FC<{ children: React.ReactNode, text: string }> = ({ childr
   );
 };
 
-const Dashboard: React.FC<{ user: UserProfile }> = ({ user }) => {
+interface DashboardProps {
+  user: UserProfile;
+  onUpdateUser: (updates: Partial<UserProfile>) => void;
+  onRequestAccess: (tier: SubscriptionTier, featureName: string) => boolean;
+  checkAccess: (tier: SubscriptionTier) => boolean;
+}
+
+const Dashboard: React.FC<DashboardProps> = ({ user, onUpdateUser, onRequestAccess, checkAccess }) => {
   const navigate = useNavigate();
+  const [isUploading, setIsUploading] = useState(false);
+  const [linkedinEdit, setLinkedinEdit] = useState(user.linkedInUrl || '');
   
   const historyData = [...user.history].reverse().map((h, i) => ({
     name: `Sess ${i + 1}`,
@@ -40,6 +49,33 @@ const Dashboard: React.FC<{ user: UserProfile }> = ({ user }) => {
     localStorage.removeItem('active_interview_transcript');
     navigate('/prepare');
   };
+
+  const handleCvUpdate = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setIsUploading(true);
+      setTimeout(() => {
+        // Simulating text extraction
+        const simulatedText = `${user.name} - Updated Professional CV. Extracted from ${file.name}. Skills: Leadership, Strategy, Technical Architecture.`;
+        onUpdateUser({
+          cvData: simulatedText,
+          cvLastUpdated: new Date().toISOString()
+        });
+        setIsUploading(false);
+      }, 2000);
+    }
+  };
+
+  const saveLinkedin = () => {
+    // LinkedIn feature requires Monthly plan
+    if (onRequestAccess('Monthly', 'LinkedIn Profile Sync')) {
+       if (linkedinEdit) {
+         onUpdateUser({ linkedInUrl: linkedinEdit });
+       }
+    }
+  };
+
+  const hasInsightsAccess = checkAccess('Weekly');
 
   return (
     <div className="space-y-8 animate-fade-in pb-12">
@@ -105,8 +141,86 @@ const Dashboard: React.FC<{ user: UserProfile }> = ({ user }) => {
         </div>
       </div>
 
-      {/* Progress Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* CV Management Card */}
+        <div className="bg-slate-900/50 p-6 md:p-8 rounded-2xl border border-slate-800/50 flex flex-col justify-between relative overflow-hidden group">
+           <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-all">
+             <i className="fas fa-file-contract text-8xl text-white"></i>
+           </div>
+           
+           <div>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-slate-100">Professional Profile</h2>
+                <span className={`px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest ${user.cvData ? 'bg-emerald-500/10 text-emerald-500' : 'bg-slate-800 text-slate-500'}`}>
+                  {user.cvData ? 'Active' : 'Missing'}
+                </span>
+              </div>
+              
+              <div className="space-y-6 mb-6">
+                 {user.cvData ? (
+                   <div className="flex items-start space-x-3">
+                     <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-500 flex items-center justify-center flex-shrink-0">
+                       <i className="fas fa-check"></i>
+                     </div>
+                     <div>
+                       <p className="text-xs font-bold text-slate-200">CV Saved on File</p>
+                       <p className="text-[10px] text-slate-500 mt-1">Last updated: {user.cvLastUpdated ? new Date(user.cvLastUpdated).toLocaleDateString() : 'Just now'}</p>
+                     </div>
+                   </div>
+                 ) : (
+                   <p className="text-xs text-slate-400 leading-relaxed">Upload your CV once to auto-fill future interview preparations. We store it securely.</p>
+                 )}
+
+                 {/* LinkedIn Field */}
+                 <div className="space-y-2 relative">
+                   <label className="text-[9px] font-black uppercase text-slate-500 tracking-widest flex items-center">
+                     <i className="fab fa-linkedin mr-1.5 text-blue-500"></i> LinkedIn Profile
+                   </label>
+                   <div className="flex space-x-2 relative z-10">
+                     <input 
+                        type="text" 
+                        placeholder="https://linkedin.com/in/..." 
+                        className="flex-grow bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-[10px] text-slate-200 focus:ring-1 focus:ring-emerald-500 outline-none disabled:opacity-50"
+                        value={linkedinEdit}
+                        onChange={(e) => setLinkedinEdit(e.target.value)}
+                        onBlur={saveLinkedin}
+                        onClick={() => onRequestAccess('Monthly', 'LinkedIn Profile Sync')}
+                     />
+                     <button onClick={saveLinkedin} className="w-8 h-8 bg-slate-800 hover:bg-emerald-600 rounded-lg flex items-center justify-center transition-colors text-white">
+                        <i className="fas fa-save text-[10px]"></i>
+                     </button>
+                   </div>
+                   
+                   {!checkAccess('Monthly') && (
+                      <div className="absolute -right-2 -top-2">
+                         <i className="fas fa-lock text-amber-500 text-[10px]"></i>
+                      </div>
+                   )}
+                 </div>
+              </div>
+           </div>
+
+           <label className={`w-full py-4 rounded-xl text-xs font-black uppercase tracking-widest text-center cursor-pointer transition-all border border-dashed flex items-center justify-center space-x-2 ${
+              isUploading 
+                ? 'bg-slate-800 border-slate-700 text-slate-500 cursor-not-allowed' 
+                : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-emerald-500 hover:text-white hover:bg-slate-900'
+           }`}>
+              <input type="file" className="hidden" onChange={handleCvUpdate} disabled={isUploading} accept=".pdf,.doc,.docx" />
+              {isUploading ? (
+                <>
+                  <i className="fas fa-spinner fa-spin"></i>
+                  <span>Analyzing...</span>
+                </>
+              ) : (
+                <>
+                  <i className={`fas ${user.cvData ? 'fa-sync-alt' : 'fa-upload'}`}></i>
+                  <span>{user.cvData ? 'Update CV' : 'Upload CV'}</span>
+                </>
+              )}
+           </label>
+        </div>
+
+        {/* Progress Section */}
         <div id="performance-trend" className="lg:col-span-2 bg-slate-900/50 p-6 md:p-8 rounded-2xl border border-slate-800/50">
           <div className="flex items-center justify-between mb-8">
             <div>
@@ -118,7 +232,7 @@ const Dashboard: React.FC<{ user: UserProfile }> = ({ user }) => {
             </Tooltip>
           </div>
           
-          <div className="h-72">
+          <div className="h-60">
             {user.history.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={historyData}>
@@ -146,8 +260,10 @@ const Dashboard: React.FC<{ user: UserProfile }> = ({ user }) => {
             )}
           </div>
         </div>
+      </div>
 
-        <div className="bg-slate-900/50 p-6 md:p-8 rounded-2xl border border-slate-800/50 flex flex-col">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="bg-slate-900/50 p-6 md:p-8 rounded-2xl border border-slate-800/50 flex flex-col lg:col-span-1">
           <h2 className="text-xl font-bold mb-6 text-slate-100">Recent Sessions</h2>
           <div className="space-y-4 flex-grow overflow-y-auto max-h-[300px] pr-2">
             {user.history.length > 0 ? (
@@ -176,37 +292,70 @@ const Dashboard: React.FC<{ user: UserProfile }> = ({ user }) => {
             New Session
           </button>
         </div>
-      </div>
 
-      {/* Market Recommendations */}
-      {user.history.length > 0 && (
-        <div className="bg-slate-900/50 p-6 md:p-8 rounded-2xl border border-slate-800/50">
-          <h2 className="text-xl font-bold mb-6 text-slate-100">AI Career Insights</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="p-6 bg-blue-900/10 border border-blue-500/20 rounded-2xl">
-              <div className="w-10 h-10 bg-blue-500/20 text-blue-400 rounded-lg flex items-center justify-center mb-4">
-                <i className="fas fa-graduation-cap"></i>
-              </div>
-              <h4 className="font-bold text-sm mb-2 text-blue-100 uppercase tracking-widest text-[10px]">Technical Mastery</h4>
-              <p className="text-xs text-slate-400 leading-relaxed font-medium">Your architectural explanations are strong. Keep focusing on scalability when answering system design questions.</p>
+        {/* Market Recommendations - Restricted Section */}
+        <div className="lg:col-span-2 bg-slate-900/50 p-6 md:p-8 rounded-2xl border border-slate-800/50 relative overflow-hidden">
+            <div className="flex items-center justify-between mb-6">
+               <h2 className="text-xl font-bold text-slate-100">AI Career Insights</h2>
+               {!hasInsightsAccess && <i className="fas fa-lock text-amber-500"></i>}
             </div>
-            <div className="p-6 bg-purple-900/10 border border-purple-500/20 rounded-2xl">
-              <div className="w-10 h-10 bg-purple-500/20 text-purple-400 rounded-lg flex items-center justify-center mb-4">
-                <i className="fas fa-comments"></i>
+
+            {hasInsightsAccess ? (
+               user.history.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="p-6 bg-blue-900/10 border border-blue-500/20 rounded-2xl">
+                    <div className="w-10 h-10 bg-blue-500/20 text-blue-400 rounded-lg flex items-center justify-center mb-4">
+                        <i className="fas fa-graduation-cap"></i>
+                    </div>
+                    <h4 className="font-bold text-sm mb-2 text-blue-100 uppercase tracking-widest text-[10px]">Technical Mastery</h4>
+                    <p className="text-xs text-slate-400 leading-relaxed font-medium">Your architectural explanations are strong. Keep focusing on scalability when answering system design questions.</p>
+                    </div>
+                    <div className="p-6 bg-purple-900/10 border border-purple-500/20 rounded-2xl">
+                    <div className="w-10 h-10 bg-purple-500/20 text-purple-400 rounded-lg flex items-center justify-center mb-4">
+                        <i className="fas fa-comments"></i>
+                    </div>
+                    <h4 className="font-bold text-sm mb-2 text-purple-100 uppercase tracking-widest text-[10px]">Behavioral Depth</h4>
+                    <p className="text-xs text-slate-400 leading-relaxed font-medium">The STAR method is working well. Remember to explicitly state the quantifiable result in your final step.</p>
+                    </div>
+                    <div className="p-6 bg-amber-900/10 border border-amber-500/20 rounded-2xl">
+                    <div className="w-10 h-10 bg-amber-500/20 text-amber-400 rounded-lg flex items-center justify-center mb-4">
+                        <i className="fas fa-globe"></i>
+                    </div>
+                    <h4 className="font-bold text-sm mb-2 text-amber-100 uppercase tracking-widest text-[10px]">Global Fit</h4>
+                    <p className="text-xs text-slate-400 leading-relaxed font-medium">Continue highlighting your cross-border collaboration experience as global companies value cultural adaptability.</p>
+                    </div>
+                </div>
+               ) : (
+                <div className="h-full flex flex-col items-center justify-center text-center p-8 opacity-50 min-h-[160px]">
+                    <i className="fas fa-lightbulb text-4xl text-slate-700 mb-4"></i>
+                    <p className="text-sm text-slate-500">Complete your first interview to generate personalized AI insights.</p>
+                </div>
+               )
+            ) : (
+              // Locked State
+              <div className="relative">
+                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 opacity-20 filter blur-sm select-none pointer-events-none">
+                     <div className="p-6 bg-slate-800 rounded-2xl h-40"></div>
+                     <div className="p-6 bg-slate-800 rounded-2xl h-40"></div>
+                     <div className="p-6 bg-slate-800 rounded-2xl h-40"></div>
+                 </div>
+                 <div className="absolute inset-0 flex flex-col items-center justify-center z-10 text-center">
+                    <div className="w-16 h-16 bg-slate-900 rounded-full flex items-center justify-center border border-slate-700 shadow-xl mb-4">
+                       <i className="fas fa-lock text-amber-500 text-2xl"></i>
+                    </div>
+                    <h3 className="text-lg font-bold text-white mb-2">Detailed Market Analysis Locked</h3>
+                    <p className="text-xs text-slate-400 mb-4 max-w-sm">Upgrade to Weekly Sprint or higher to unlock personalized AI feedback, market salary trends, and skill gap analysis.</p>
+                    <button 
+                      onClick={() => onRequestAccess('Weekly', 'AI Career Insights')}
+                      className="px-6 py-3 bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-emerald-500 transition-all shadow-lg"
+                    >
+                      Unlock Insights
+                    </button>
+                 </div>
               </div>
-              <h4 className="font-bold text-sm mb-2 text-purple-100 uppercase tracking-widest text-[10px]">Behavioral Depth</h4>
-              <p className="text-xs text-slate-400 leading-relaxed font-medium">The STAR method is working well. Remember to explicitly state the quantifiable result in your final step.</p>
-            </div>
-            <div className="p-6 bg-amber-900/10 border border-amber-500/20 rounded-2xl">
-              <div className="w-10 h-10 bg-amber-500/20 text-amber-400 rounded-lg flex items-center justify-center mb-4">
-                <i className="fas fa-globe"></i>
-              </div>
-              <h4 className="font-bold text-sm mb-2 text-amber-100 uppercase tracking-widest text-[10px]">Global Fit</h4>
-              <p className="text-xs text-slate-400 leading-relaxed font-medium">Continue highlighting your cross-border collaboration experience as global companies value cultural adaptability.</p>
-            </div>
-          </div>
+            )}
         </div>
-      )}
+      </div>
     </div>
   );
 };

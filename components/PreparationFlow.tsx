@@ -1,18 +1,26 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { UserProfile, Difficulty, InterviewState, AfricanRegion } from '../types';
+import { UserProfile, Difficulty, InterviewState, AfricanRegion, SubscriptionTier } from '../types';
 import { analyzeJobContext } from '../services/geminiService';
 
 const PERSISTENCE_KEY = 'hireprep_prep_draft';
 const ACTIVE_SESSION_KEY = 'hireprep_active_session';
 
-const PreparationFlow: React.FC<{ user: UserProfile, onSaveState?: (state: InterviewState) => void }> = ({ user, onSaveState }) => {
+interface PreparationFlowProps {
+  user: UserProfile;
+  onSaveState?: (state: InterviewState) => void;
+  onUpdateUser: (updates: Partial<UserProfile>) => void;
+  onRequestAccess: (tier: SubscriptionTier, featureName: string) => boolean;
+}
+
+const PreparationFlow: React.FC<PreparationFlowProps> = ({ user, onSaveState, onUpdateUser, onRequestAccess }) => {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [analysis, setAnalysis] = useState<any | null>(null);
   const [isScanning, setIsScanning] = useState(false);
+  const [linkedinError, setLinkedinError] = useState<string | null>(null);
   
   const [form, setForm] = useState<InterviewState>(() => {
     const saved = localStorage.getItem(PERSISTENCE_KEY);
@@ -24,16 +32,27 @@ const PreparationFlow: React.FC<{ user: UserProfile, onSaveState?: (state: Inter
       }
     }
     return {
-      cvText: '',
+      cvText: user.cvData || '', // Auto-fill if CV exists in profile
       jobDescription: '',
       jobRole: '',
       jobLocation: '',
       industry: '',
       difficulty: Difficulty.MEDIUM,
       region: 'Nigeria (West)',
-      isRandomized: false
+      isRandomized: false,
+      linkedInUrl: user.linkedInUrl || ''
     };
   });
+
+  // Keep form in sync with user profile if it changes remotely (unlikely but safe)
+  useEffect(() => {
+    if (user.cvData && !form.cvText) {
+      setForm(prev => ({ ...prev, cvText: user.cvData! }));
+    }
+    if (user.linkedInUrl && !form.linkedInUrl) {
+      setForm(prev => ({ ...prev, linkedInUrl: user.linkedInUrl! }));
+    }
+  }, [user.cvData, user.linkedInUrl]);
 
   useEffect(() => {
     localStorage.setItem(PERSISTENCE_KEY, JSON.stringify(form));
@@ -44,17 +63,26 @@ const PreparationFlow: React.FC<{ user: UserProfile, onSaveState?: (state: Inter
     if (file) {
       setIsScanning(true);
       setTimeout(() => {
+        const extractedText = `${user.name} - Professional profile extracted from ${file.name}. Background in ${form.industry || 'specified field'}. Ready for benchmarking.`;
+        
         setForm(prev => ({ 
           ...prev, 
-          cvText: `${user.name} - Professional profile extracted from uploaded document. Background in ${form.industry || 'specified field'}. Ready for benchmarking.`
+          cvText: extractedText
         }));
+
+        // Persist CV to global user profile
+        onUpdateUser({
+          cvData: extractedText,
+          cvLastUpdated: new Date().toISOString()
+        });
+
         setIsScanning(false);
       }, 2000);
     }
   };
 
   const handleAnalyze = async () => {
-    if (!form.jobRole || !form.industry || !form.jobDescription || !form.jobLocation) return;
+    if (!form.jobRole || !form.industry || !form.jobLocation) return;
     setLoading(true);
     try {
       const result = await analyzeJobContext(form);
@@ -76,11 +104,41 @@ const PreparationFlow: React.FC<{ user: UserProfile, onSaveState?: (state: Inter
     navigate('/interview');
   };
 
+  const handleRegionSelect = (r: AfricanRegion) => {
+    if (r === 'Global / International' || r === 'Remote / Pan-African') {
+      if (!onRequestAccess('Weekly', 'International Markets')) return;
+    }
+    setForm(prev => ({ ...prev, region: r }));
+  };
+
+  const handleDifficultySelect = (d: Difficulty) => {
+    if (d === Difficulty.HARD) {
+      if (!onRequestAccess('Weekly', 'Expert Mode')) return;
+    }
+    setForm(prev => ({ ...prev, difficulty: d }));
+  };
+
+  const handleLinkedinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setForm(prev => ({ ...prev, linkedInUrl: val }));
+    
+    if (val && !val.match(/^https:\/\/(www\.)?linkedin\.com\/.*$/)) {
+       setLinkedinError('Invalid URL. Must start with https://linkedin.com/');
+    } else {
+       setLinkedinError(null);
+       if (val) {
+         onUpdateUser({ linkedInUrl: val });
+       }
+    }
+  };
+
   const regions: AfricanRegion[] = [
     'Nigeria (West)', 'Kenya (East)', 'South Africa (South)', 
     'Egypt (North)', 'Ghana (West)', 'Ethiopia (East)', 
     'Remote / Pan-African', 'Global / International'
   ];
+  
+  const isLinkedinLocked = !['Monthly', 'Yearly'].includes(user.subscriptionTier) && user.email !== 'admin@gmail.com';
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-in slide-in-from-bottom-4 duration-500 relative pb-12">
@@ -155,12 +213,48 @@ const PreparationFlow: React.FC<{ user: UserProfile, onSaveState?: (state: Inter
                       onChange={e => setForm(prev => ({ ...prev, jobLocation: e.target.value }))}
                     />
                   </div>
+                  
+                  {/* LinkedIn Input */}
+                  <div className="space-y-1.5 relative">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center">
+                      <i className="fab fa-linkedin text-blue-500 mr-2 text-xs"></i>
+                      LinkedIn Profile URL <span className="text-slate-600 lowercase ml-1">(optional)</span>
+                      {isLinkedinLocked && (
+                         <div className="flex items-center ml-2 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                            <i className="fas fa-lock text-amber-500 text-[9px] mr-1"></i>
+                            <span className="text-[8px] font-bold text-amber-500 uppercase">Pro Feature</span>
+                         </div>
+                      )}
+                    </label>
+                    <input 
+                      type="text" 
+                      placeholder="https://linkedin.com/in/username" 
+                      className={`w-full bg-slate-950 px-4 py-3.5 rounded-xl border ${linkedinError ? 'border-red-500 focus:ring-red-500' : 'border-slate-800 focus:ring-blue-500'} text-slate-100 placeholder:text-slate-700 focus:ring-2 transition-all outline-none ${isLinkedinLocked ? 'opacity-60 cursor-not-allowed' : ''}`}
+                      value={form.linkedInUrl || ''}
+                      readOnly={isLinkedinLocked}
+                      onClick={() => {
+                        if (isLinkedinLocked) onRequestAccess('Monthly', 'LinkedIn Analysis');
+                      }}
+                      onChange={handleLinkedinChange}
+                    />
+                    {linkedinError && (
+                        <div className="flex items-center space-x-1.5 text-red-400 mt-1 ml-1 animate-pulse">
+                            <i className="fas fa-exclamation-circle text-[10px]"></i>
+                            <p className="text-[10px] font-bold">{linkedinError}</p>
+                        </div>
+                    )}
+                    {isLinkedinLocked && !linkedinError && (
+                        <p className="text-[10px] text-slate-500 ml-1">Unlock with Monthly plan to enable AI profile sync.</p>
+                    )}
+                  </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Job Description (JD)</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">
+                      Job Description <span className="text-slate-600 lowercase ml-1">(optional)</span>
+                    </label>
                     <textarea 
                       rows={5}
-                      placeholder="Paste key responsibilities or full JD here..." 
+                      placeholder="Paste key responsibilities... If left blank, AI will infer requirements based on role." 
                       className="w-full bg-slate-950 px-4 py-3.5 rounded-xl border border-slate-800 text-slate-100 placeholder:text-slate-700 focus:ring-2 focus:ring-emerald-500 transition-all outline-none resize-none"
                       value={form.jobDescription}
                       onChange={e => setForm(prev => ({ ...prev, jobDescription: e.target.value }))}
@@ -173,21 +267,25 @@ const PreparationFlow: React.FC<{ user: UserProfile, onSaveState?: (state: Inter
             <div className="lg:col-span-2 space-y-6">
               <div className="bg-slate-900 p-8 rounded-3xl border border-slate-800 space-y-6 shadow-2xl flex flex-col h-full">
                 <h3 className="font-bold text-slate-200">Profile Sync</h3>
-                <div className="relative border-2 border-dashed border-slate-800 rounded-2xl p-8 text-center hover:border-emerald-500 hover:bg-emerald-500/5 transition-all cursor-pointer group flex-grow flex flex-col items-center justify-center">
-                  <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={handleFileUpload} />
+                <div className="relative border-2 border-dashed border-slate-800 rounded-2xl p-8 text-center hover:border-emerald-500 hover:bg-emerald-500/5 transition-all cursor-pointer group flex-grow flex flex-col items-center justify-center overflow-hidden">
+                  <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" onChange={handleFileUpload} accept=".pdf,.doc,.docx" />
                   {isScanning ? (
                     <div className="flex flex-col items-center space-y-4">
                       <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
                       <p className="text-[10px] font-black text-emerald-400 animate-pulse tracking-widest uppercase">Benchmarking...</p>
                     </div>
                   ) : (
-                    <div className="space-y-4">
-                      <div className="w-16 h-16 bg-slate-950 rounded-2xl flex items-center justify-center mx-auto group-hover:bg-emerald-600 transition-all shadow-xl">
-                        <i className={`fas ${form.cvText ? 'fa-check text-emerald-400 group-hover:text-white' : 'fa-cloud-upload-alt text-slate-600 group-hover:text-white'} text-2xl`}></i>
+                    <div className="space-y-4 relative z-0">
+                      <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto transition-all shadow-xl ${form.cvText ? 'bg-emerald-600' : 'bg-slate-950 group-hover:bg-slate-800'}`}>
+                        <i className={`fas ${form.cvText ? 'fa-check text-white' : 'fa-cloud-upload-alt text-slate-600 group-hover:text-white'} text-2xl`}></i>
                       </div>
                       <div>
-                        <p className="text-slate-200 font-bold text-sm">{form.cvText ? 'CV Data Analyzed' : 'Upload Resume'}</p>
-                        <p className="text-[9px] text-slate-500 mt-2 font-black uppercase tracking-widest">PDF / DOCX Only</p>
+                        <p className="text-slate-200 font-bold text-sm">
+                          {form.cvText ? (user.cvData ? 'Using Saved CV' : 'CV Data Extracted') : 'Upload Resume'}
+                        </p>
+                        <p className="text-[9px] text-slate-500 mt-2 font-black uppercase tracking-widest">
+                          {form.cvText ? 'Click to replace' : 'PDF / DOCX Only'}
+                        </p>
                       </div>
                     </div>
                   )}
@@ -195,7 +293,7 @@ const PreparationFlow: React.FC<{ user: UserProfile, onSaveState?: (state: Inter
                 
                 <button 
                   onClick={() => setStep(2)}
-                  disabled={!form.jobRole || !form.jobDescription || !form.cvText}
+                  disabled={!form.jobRole || !form.industry || !form.jobLocation || !form.cvText}
                   className="w-full py-5 bg-emerald-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-700 transition-all shadow-2xl shadow-emerald-900/20 active:scale-95"
                 >
                   Configure Difficulty
@@ -218,37 +316,45 @@ const PreparationFlow: React.FC<{ user: UserProfile, onSaveState?: (state: Inter
               <div className="space-y-4">
                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Target Market Focus</label>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  {regions.map(r => (
-                    <button
-                      key={r}
-                      onClick={() => setForm(prev => ({ ...prev, region: r }))}
-                      className={`p-4 rounded-xl border-2 text-[11px] font-bold transition-all ${
-                        form.region === r ? 'border-emerald-600 bg-emerald-950 text-emerald-400 shadow-lg shadow-emerald-900/10' : 'border-slate-800 bg-slate-950 text-slate-600 hover:border-slate-700'
-                      }`}
-                    >
-                      {r}
-                    </button>
-                  ))}
+                  {regions.map(r => {
+                    const isRestricted = (r === 'Global / International' || r === 'Remote / Pan-African') && !['Weekly', 'Monthly', 'Yearly'].includes(user.subscriptionTier) && user.email !== 'admin@gmail.com';
+                    return (
+                      <button
+                        key={r}
+                        onClick={() => handleRegionSelect(r)}
+                        className={`p-4 rounded-xl border-2 text-[11px] font-bold transition-all relative ${
+                          form.region === r ? 'border-emerald-600 bg-emerald-950 text-emerald-400 shadow-lg shadow-emerald-900/10' : 'border-slate-800 bg-slate-950 text-slate-600 hover:border-slate-700'
+                        }`}
+                      >
+                        {r}
+                        {isRestricted && <div className="absolute top-1 right-2 text-amber-500"><i className="fas fa-lock text-[8px]"></i></div>}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
               <div className="space-y-4">
                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Mock Complexity</label>
                 <div className="grid grid-cols-3 gap-4">
-                  {Object.values(Difficulty).map(d => (
-                    <button
-                      key={d}
-                      onClick={() => setForm(prev => ({ ...prev, difficulty: d }))}
-                      className={`py-5 rounded-xl border-2 font-bold transition-all flex flex-col items-center ${
-                        form.difficulty === d ? 'border-blue-600 bg-blue-950 text-blue-400 shadow-lg shadow-blue-900/10' : 'border-slate-800 bg-slate-950 text-slate-600 hover:border-slate-700'
-                      }`}
-                    >
-                      <span className="text-sm font-black uppercase">{d}</span>
-                      <span className="text-[8px] mt-1 opacity-60 uppercase tracking-widest">
-                        {d === Difficulty.HARD ? "Top Tier Rigor" : d === Difficulty.MEDIUM ? "Pro Standard" : "Warm Up"}
-                      </span>
-                    </button>
-                  ))}
+                  {Object.values(Difficulty).map(d => {
+                     const isRestricted = d === Difficulty.HARD && !['Weekly', 'Monthly', 'Yearly'].includes(user.subscriptionTier) && user.email !== 'admin@gmail.com';
+                     return (
+                      <button
+                        key={d}
+                        onClick={() => handleDifficultySelect(d)}
+                        className={`py-5 rounded-xl border-2 font-bold transition-all flex flex-col items-center relative ${
+                          form.difficulty === d ? 'border-blue-600 bg-blue-950 text-blue-400 shadow-lg shadow-blue-900/10' : 'border-slate-800 bg-slate-950 text-slate-600 hover:border-slate-700'
+                        }`}
+                      >
+                        {isRestricted && <div className="absolute top-2 right-3 text-amber-500"><i className="fas fa-lock text-xs"></i></div>}
+                        <span className="text-sm font-black uppercase">{d}</span>
+                        <span className="text-[8px] mt-1 opacity-60 uppercase tracking-widest">
+                          {d === Difficulty.HARD ? "Top Tier Rigor" : d === Difficulty.MEDIUM ? "Pro Standard" : "Warm Up"}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 

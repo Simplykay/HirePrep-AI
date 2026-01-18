@@ -6,13 +6,20 @@ export const analyzeJobContext = async (state: InterviewState): Promise<any> => 
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
   
   const prompt = `
-    Representing HirePrep, as a world-class Global Talent Acquisition Specialist specializing in the African tech and professional market, analyze the following data for a candidate applying to a role in ${state.region}:
+    Representing HirePrep, as a world-class Global Talent Acquisition Specialist specializing in the African tech and professional market, analyze the following data for a candidate applying to a role in ${state.region}.
     
     JOB ROLE: ${state.jobRole}
     INDUSTRY/DOMAIN: ${state.industry}
     JOB LOCATION: ${state.jobLocation}
-    JOB DESCRIPTION: ${state.jobDescription}
-    CANDIDATE CV: ${state.cvText}
+    JOB DESCRIPTION: ${state.jobDescription || "Not provided. Please infer standard professional requirements and key competencies for this job title and industry."}
+    
+    CANDIDATE CV TEXT: ${state.cvText}
+    CANDIDATE LINKEDIN PROFILE: ${state.linkedInUrl || "Not provided"}
+    
+    Task:
+    1. If a LinkedIn URL is provided, use Google Search to find public details to strictly complement the CV (do not hallucinate).
+    2. Analyze the fit between the candidate (CV + LinkedIn) and the Role.
+    3. Identify skill gaps, strengths, and market alignment.
     
     Provide a detailed analysis including:
     1. A list of skill gaps (matched, missing, or partial).
@@ -89,12 +96,16 @@ export const generateNextQuestion = async (
     : "Ask straightforward introductory, interest, and core skills-based questions.";
 
   const regionPrompt = `Incorporate nuances of the ${state.region} market, mentioning relevant local challenges or opportunities where appropriate for ${state.industry}.`;
+  
+  const jdContext = state.jobDescription ? `JD Context: ${state.jobDescription}` : "JD Context: Standard requirements for this role.";
+  const linkedinContext = state.linkedInUrl ? `LinkedIn URL provided: ${state.linkedInUrl}` : "";
 
   const prompt = isFirst 
     ? `Start the professional interview with ${firstName} for the role of ${state.jobRole} in the ${state.industry} industry, located in ${state.jobLocation}. 
        ${difficultyPrompt} ${regionPrompt}
+       ${jdContext}
        Tailor your questioning to international standards and professional expectations.
-       Reference parts of their CV: ${state.cvText.substring(0, 500)}... if relevant.`
+       Reference parts of their CV: ${state.cvText.substring(0, 500)}... and their LinkedIn profile (${linkedinContext}) if relevant.`
     : `Given the interview history so far: ${JSON.stringify(history.slice(-4))}. 
        Ask the next relevant follow-up or a new question for the ${state.jobRole} position. 
        Maintain high professional rigor.

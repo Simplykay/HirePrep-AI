@@ -7,6 +7,7 @@ import PreparationFlow from './components/PreparationFlow';
 import InterviewRoom from './components/InterviewRoom';
 import Pricing from './components/Pricing';
 import Auth from './components/Auth';
+import UpgradeModal from './components/UpgradeModal';
 import { UserProfile, SubscriptionTier, InterviewResult } from './types';
 import { createChatSession } from './services/geminiService';
 
@@ -114,8 +115,13 @@ const AIChatAssistant: React.FC = () => {
 const App: React.FC = () => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
+  
+  // Upgrade Modal State
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+  const [upgradeFeatureName, setUpgradeFeatureName] = useState('');
+  const [requiredTier, setRequiredTier] = useState('');
 
-  // Persistence simulation with error handling
+  // Persistence simulation
   useEffect(() => {
     try {
       const savedUser = localStorage.getItem('hireprep_user');
@@ -155,6 +161,7 @@ const App: React.FC = () => {
 
   const handleUpgrade = (tier: SubscriptionTier) => {
     updateUserInfo({ isPremium: tier !== 'Free', subscriptionTier: tier });
+    setUpgradeModalOpen(false); // Close modal on successful upgrade
   };
 
   const addInterviewResult = (result: InterviewResult) => {
@@ -164,6 +171,29 @@ const App: React.FC = () => {
       history: newHistory,
       interviewsCompleted: user.interviewsCompleted + 1
     });
+  };
+
+  // Centralized Access Control Logic
+  const checkFeatureAccess = (tier: SubscriptionTier | 'Admin'): boolean => {
+    if (!user) return false;
+    // Default Admin Bypass
+    if (user.email === 'admin@gmail.com') return true;
+
+    const tiers = ['Free', 'Weekly', 'Monthly', 'Yearly'];
+    const userTierIndex = tiers.indexOf(user.subscriptionTier);
+    const requiredTierIndex = tiers.indexOf(tier === 'Admin' ? 'Yearly' : tier); // Admin is practically unlimited
+
+    return userTierIndex >= requiredTierIndex;
+  };
+
+  const requestFeatureAccess = (tier: SubscriptionTier, featureName: string): boolean => {
+    if (checkFeatureAccess(tier)) {
+      return true;
+    }
+    setUpgradeFeatureName(featureName);
+    setRequiredTier(tier);
+    setUpgradeModalOpen(true);
+    return false;
   };
 
   if (isInitializing) {
@@ -184,15 +214,51 @@ const App: React.FC = () => {
             <Header user={user} onLogout={handleLogout} />
             <main className="flex-grow container mx-auto px-4 py-4 md:py-8 max-w-6xl">
               <Routes>
-                <Route path="/" element={<Dashboard user={user} />} />
-                <Route path="/history" element={<Dashboard user={user} />} />
-                <Route path="/prepare" element={<PreparationFlow user={user} onSaveState={(s) => updateUserInfo({ lastSessionState: s })} />} />
+                <Route 
+                  path="/" 
+                  element={
+                    <Dashboard 
+                      user={user} 
+                      onUpdateUser={updateUserInfo} 
+                      onRequestAccess={requestFeatureAccess}
+                      checkAccess={checkFeatureAccess}
+                    />
+                  } 
+                />
+                <Route 
+                  path="/history" 
+                  element={
+                    <Dashboard 
+                      user={user} 
+                      onUpdateUser={updateUserInfo}
+                      onRequestAccess={requestFeatureAccess}
+                      checkAccess={checkFeatureAccess} 
+                    />
+                  } 
+                />
+                <Route 
+                  path="/prepare" 
+                  element={
+                    <PreparationFlow 
+                      user={user} 
+                      onSaveState={(s) => updateUserInfo({ lastSessionState: s })} 
+                      onUpdateUser={updateUserInfo} 
+                      onRequestAccess={requestFeatureAccess}
+                    />
+                  } 
+                />
                 <Route path="/interview" element={<InterviewRoom user={user} onFinish={addInterviewResult} />} />
                 <Route path="/pricing" element={<Pricing user={user} onUpgrade={handleUpgrade} />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </main>
             <AIChatAssistant />
+            <UpgradeModal 
+              isOpen={upgradeModalOpen} 
+              onClose={() => setUpgradeModalOpen(false)} 
+              featureName={upgradeFeatureName}
+              requiredTier={requiredTier}
+            />
             <footer className="bg-slate-900 border-t border-slate-800 py-8 mt-auto">
               <div className="container mx-auto px-6 flex flex-col md:flex-row items-center justify-between text-slate-500 text-[10px] font-bold uppercase tracking-widest gap-4">
                 <p>&copy; {new Date().getFullYear()} HirePrep AI. Empowering African Talent.</p>

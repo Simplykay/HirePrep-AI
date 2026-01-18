@@ -23,6 +23,7 @@ export interface InterviewResult {
   role: string;
   score: number;
   feedback: FeedbackData;
+  transcript?: {role: string, text: string}[];
 }
 
 export interface UserProfile {
@@ -36,6 +37,9 @@ export interface UserProfile {
   history: InterviewResult[];
   lastSessionState?: InterviewState;
   hasCompletedOnboarding?: boolean;
+  cvData?: string;
+  cvLastUpdated?: string;
+  linkedInUrl?: string;
 }
 
 export interface InterviewState {
@@ -47,6 +51,7 @@ export interface InterviewState {
   difficulty: Difficulty;
   region: AfricanRegion;
   isRandomized: boolean;
+  linkedInUrl?: string;
 }
 
 export interface Suggestion {
