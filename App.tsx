@@ -8,6 +8,7 @@ import InterviewRoom from './components/InterviewRoom';
 import Pricing from './components/Pricing';
 import Auth from './components/Auth';
 import UpgradeModal from './components/UpgradeModal';
+import ErrorBoundary from './components/ErrorBoundary';
 import { UserProfile, SubscriptionTier, InterviewResult } from './types';
 import { createChatSession } from './services/geminiService';
 
@@ -25,7 +26,7 @@ const ScrollToTop = () => {
 // Global Chatbot UI
 const AIChatAssistant: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState<{role: string, text: string}[]>([]);
+  const [messages, setMessages] = useState<{ role: string, text: string }[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const chatSessionRef = useRef<any>(null);
@@ -87,19 +88,19 @@ const AIChatAssistant: React.FC = () => {
             ))}
             {loading && (
               <div className="flex justify-start">
-                 <div className="bg-slate-800 p-3 rounded-2xl flex space-x-1 shadow-sm">
-                    <div className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce"></div>
-                    <div className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce delay-75"></div>
-                    <div className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce delay-150"></div>
-                 </div>
+                <div className="bg-slate-800 p-3 rounded-2xl flex space-x-1 shadow-sm">
+                  <div className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce"></div>
+                  <div className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce delay-75"></div>
+                  <div className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce delay-150"></div>
+                </div>
               </div>
             )}
             <div ref={scrollRef} />
           </div>
           <div className="p-3 bg-slate-900/50 border-t border-slate-800 flex space-x-2">
-            <input 
-              type="text" 
-              className="flex-grow bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 text-[11px] focus:ring-1 focus:ring-blue-500 outline-none placeholder:text-slate-600 text-white" 
+            <input
+              type="text"
+              className="flex-grow bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 text-[11px] focus:ring-1 focus:ring-blue-500 outline-none placeholder:text-slate-600 text-white"
               placeholder="Ask me anything..."
               value={input}
               onChange={e => setInput(e.target.value)}
@@ -111,7 +112,7 @@ const AIChatAssistant: React.FC = () => {
           </div>
         </div>
       ) : (
-        <button 
+        <button
           id="career-assistant-btn"
           onClick={() => setIsOpen(true)}
           className="w-14 h-14 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-110 transition-all success-glow group"
@@ -126,7 +127,7 @@ const AIChatAssistant: React.FC = () => {
 const App: React.FC = () => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
-  
+
   // Upgrade Modal State
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [upgradeFeatureName, setUpgradeFeatureName] = useState('');
@@ -225,49 +226,51 @@ const App: React.FC = () => {
           <>
             <Header user={user} onLogout={handleLogout} />
             <main className="flex-grow container mx-auto px-4 py-4 md:py-8 max-w-6xl">
-              <Routes>
-                <Route 
-                  path="/" 
-                  element={
-                    <Dashboard 
-                      user={user} 
-                      onUpdateUser={updateUserInfo} 
-                      onRequestAccess={requestFeatureAccess}
-                      checkAccess={checkFeatureAccess}
-                    />
-                  } 
-                />
-                <Route 
-                  path="/history" 
-                  element={
-                    <Dashboard 
-                      user={user} 
-                      onUpdateUser={updateUserInfo}
-                      onRequestAccess={requestFeatureAccess}
-                      checkAccess={checkFeatureAccess} 
-                    />
-                  } 
-                />
-                <Route 
-                  path="/prepare" 
-                  element={
-                    <PreparationFlow 
-                      user={user} 
-                      onSaveState={(s) => updateUserInfo({ lastSessionState: s })} 
-                      onUpdateUser={updateUserInfo} 
-                      onRequestAccess={requestFeatureAccess}
-                    />
-                  } 
-                />
-                <Route path="/interview" element={<InterviewRoom user={user} onFinish={addInterviewResult} />} />
-                <Route path="/pricing" element={<Pricing user={user} onUpgrade={handleUpgrade} />} />
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
+              <ErrorBoundary>
+                <Routes>
+                  <Route
+                    path="/"
+                    element={
+                      <Dashboard
+                        user={user}
+                        onUpdateUser={updateUserInfo}
+                        onRequestAccess={requestFeatureAccess}
+                        checkAccess={checkFeatureAccess}
+                      />
+                    }
+                  />
+                  <Route
+                    path="/history"
+                    element={
+                      <Dashboard
+                        user={user}
+                        onUpdateUser={updateUserInfo}
+                        onRequestAccess={requestFeatureAccess}
+                        checkAccess={checkFeatureAccess}
+                      />
+                    }
+                  />
+                  <Route
+                    path="/prepare"
+                    element={
+                      <PreparationFlow
+                        user={user}
+                        onSaveState={(s) => updateUserInfo({ lastSessionState: s })}
+                        onUpdateUser={updateUserInfo}
+                        onRequestAccess={requestFeatureAccess}
+                      />
+                    }
+                  />
+                  <Route path="/interview" element={<InterviewRoom user={user} onFinish={addInterviewResult} />} />
+                  <Route path="/pricing" element={<Pricing user={user} onUpgrade={handleUpgrade} />} />
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </ErrorBoundary>
             </main>
             <AIChatAssistant />
-            <UpgradeModal 
-              isOpen={upgradeModalOpen} 
-              onClose={() => setUpgradeModalOpen(false)} 
+            <UpgradeModal
+              isOpen={upgradeModalOpen}
+              onClose={() => setUpgradeModalOpen(false)}
               featureName={upgradeFeatureName}
               requiredTier={requiredTier}
             />
@@ -275,9 +278,9 @@ const App: React.FC = () => {
               <div className="container mx-auto px-6 flex flex-col md:flex-row items-center justify-between text-slate-500 text-[10px] font-bold uppercase tracking-widest gap-4">
                 <p>&copy; {new Date().getFullYear()} HirePrep AI. Empowering African Talent.</p>
                 <div className="flex items-center space-x-6">
-                   <a href="#" className="hover:text-emerald-400 transition-colors">Privacy</a>
-                   <a href="#" className="hover:text-emerald-400 transition-colors">Terms</a>
-                   <a href="#" className="hover:text-emerald-400 transition-colors">Support</a>
+                  <a href="#" className="hover:text-emerald-400 transition-colors">Privacy</a>
+                  <a href="#" className="hover:text-emerald-400 transition-colors">Terms</a>
+                  <a href="#" className="hover:text-emerald-400 transition-colors">Support</a>
                 </div>
               </div>
             </footer>
