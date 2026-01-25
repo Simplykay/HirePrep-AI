@@ -1,7 +1,7 @@
 
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { UserProfile, InterviewResult, SubscriptionTier } from '../types';
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { UserProfile } from '../types';
 import { CartesianGrid, Tooltip as ChartTooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis } from 'recharts';
 
 // Simple hover tooltip component
@@ -26,9 +26,7 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ user, onUpdateUser, onRequestAccess, checkAccess }) => {
   const navigate = useNavigate();
-  const [isUploading, setIsUploading] = useState(false);
-  const [linkedinEdit, setLinkedinEdit] = useState(user.linkedInUrl || '');
-  
+
   const historyData = [...user.history].reverse().map((h, i) => ({
     name: `Sess ${i + 1}`,
     score: h.score,
@@ -83,20 +81,20 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onUpdateUser, onRequestAcce
       <div id="welcome-hero" className="bg-emerald-600 rounded-3xl p-6 md:p-12 text-white relative overflow-hidden shadow-2xl">
         <div className="absolute inset-0 pattern-overlay"></div>
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 blur-[80px] rounded-full translate-x-1/2 -translate-y-1/2"></div>
-        
+
         <div className="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-8">
           <div className="max-w-xl text-center lg:text-left w-full lg:w-auto">
             <h1 className="text-3xl md:text-5xl font-extrabold mb-4 leading-tight">
               Welcome back, {user.name.split(' ')[0]}!
             </h1>
             <p className="text-emerald-100 text-sm md:text-lg mb-8 opacity-90">
-              {user.history.length > 0 
+              {user.history.length > 0
                 ? `Last performance: ${lastSession.score}%. Keep that momentum for your ${lastSession.role} target!`
                 : "Your global career journey starts here. Launch your first mock interview."}
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start w-full">
+            <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start w-full mt-6">
               <Tooltip text="Begin a fresh analysis & mock session">
-                <button 
+                <button
                   id="start-prep-btn"
                   onClick={startFreshSession}
                   className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 bg-white text-emerald-600 px-8 py-4 rounded-xl font-bold hover:bg-emerald-50 transition-all transform hover:scale-105 shadow-xl active:scale-95"
@@ -106,7 +104,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onUpdateUser, onRequestAcce
                 </button>
               </Tooltip>
               {user.lastSessionState && (
-                <button 
+                <button
                   onClick={resumePrep}
                   className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 bg-emerald-700 text-white px-8 py-4 rounded-xl font-bold hover:bg-emerald-800 transition-all border border-emerald-500/30 active:scale-95"
                 >
@@ -116,27 +114,27 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onUpdateUser, onRequestAcce
               )}
             </div>
           </div>
-          
-          <div id="competency-index" className="w-full lg:w-auto flex-shrink-0 bg-emerald-700/50 backdrop-blur-md p-6 rounded-2xl border border-white/20 min-w-[240px]">
-             <div className="text-center mb-4">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-200">Competency Index</p>
-                <p className="text-5xl font-black text-white">
-                  {user.history.length > 0 
-                    ? Math.round(user.history.reduce((acc, h) => acc + h.score, 0) / user.history.length)
-                    : 0
-                  }<span className="text-xl">%</span>
-                </p>
-             </div>
-             <div className="flex gap-4">
-                <div className="text-center px-4 border-r border-white/10 flex-1">
-                   <p className="text-[9px] font-bold text-emerald-200 uppercase">Sessions</p>
-                   <p className="text-xl font-bold">{user.interviewsCompleted}</p>
-                </div>
-                <div className="text-center px-4 flex-1">
-                   <p className="text-[9px] font-bold text-emerald-200 uppercase">Market Tier</p>
-                   <p className="text-lg font-bold">Global</p>
-                </div>
-             </div>
+
+          <div id="competency-index" className="w-full lg:w-auto flex-shrink-0 bg-emerald-700/50 backdrop-blur-md p-6 rounded-2xl border border-white/20 min-w-[240px] mt-6 lg:mt-0">
+            <div className="text-center mb-4">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-200">Competency Index</p>
+              <p className="text-5xl font-black text-white">
+                {user.history.length > 0
+                  ? Math.round(user.history.reduce((acc, h) => acc + h.score, 0) / user.history.length)
+                  : 0
+                }<span className="text-xl">%</span>
+              </p>
+            </div>
+            <div className="flex gap-4">
+              <div className="text-center px-4 border-r border-white/10 flex-1">
+                <p className="text-[9px] font-bold text-emerald-200 uppercase">Sessions</p>
+                <p className="text-xl font-bold">{user.interviewsCompleted}</p>
+              </div>
+              <div className="text-center px-4 flex-1">
+                <p className="text-[9px] font-bold text-emerald-200 uppercase">Market Tier</p>
+                <p className="text-lg font-bold">Global</p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -228,27 +226,27 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onUpdateUser, onRequestAcce
               <p className="text-xs text-slate-500 mt-1">Growth across your sessions.</p>
             </div>
             <Tooltip text="Scores derived from Gemini AI analysis">
-               <i className="fas fa-info-circle text-slate-600 cursor-help"></i>
+              <i className="fas fa-info-circle text-slate-600 cursor-help"></i>
             </Tooltip>
           </div>
-          
-          <div className="h-60">
+
+          <div className="h-72">
             {user.history.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={historyData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 10}} />
-                  <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 10}} domain={[0, 100]} />
-                  <ChartTooltip 
-                    contentStyle={{borderRadius: '16px', border: '1px solid #1e293b', backgroundColor: '#020617', color: '#fff'}}
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10 }} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10 }} domain={[0, 100]} />
+                  <ChartTooltip
+                    contentStyle={{ borderRadius: '16px', border: '1px solid #1e293b', backgroundColor: '#020617', color: '#fff' }}
                   />
-                  <Line 
-                    type="monotone" 
-                    dataKey="score" 
-                    stroke="#10b981" 
-                    strokeWidth={3} 
-                    dot={{fill: '#10b981', r: 5}} 
-                    activeDot={{r: 8, stroke: '#fff', strokeWidth: 2}}
+                  <Line
+                    type="monotone"
+                    dataKey="score"
+                    stroke="#10b981"
+                    strokeWidth={3}
+                    dot={{ fill: '#10b981', r: 5 }}
+                    activeDot={{ r: 8, stroke: '#fff', strokeWidth: 2 }}
                   />
                 </LineChart>
               </ResponsiveContainer>
@@ -285,7 +283,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onUpdateUser, onRequestAcce
               </div>
             )}
           </div>
-          <button 
+          <button
             onClick={startFreshSession}
             className="w-full mt-6 py-4 bg-slate-800 text-white text-center text-xs font-black uppercase tracking-widest rounded-xl hover:bg-slate-700 transition-colors shadow-lg active:scale-95"
           >

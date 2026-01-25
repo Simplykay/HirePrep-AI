@@ -1,10 +1,10 @@
 
-import { GoogleGenAI, Type, GenerateContentResponse, Modality } from "@google/genai";
+import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { InterviewState, FeedbackData, Difficulty } from "../types";
 
 export const analyzeJobContext = async (state: InterviewState): Promise<any> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
-  
+  const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || '' });
+
   const prompt = `
     Representing HirePrep, as a world-class Global Talent Acquisition Specialist specializing in the African tech and professional market, analyze the following data for a candidate applying to a role in ${state.region}.
     
@@ -82,25 +82,25 @@ export const analyzeJobContext = async (state: InterviewState): Promise<any> => 
 };
 
 export const generateNextQuestion = async (
-  state: InterviewState, 
-  history: {role: string, text: string}[],
+  state: InterviewState,
+  history: { role: string, text: string }[],
   isFirst: boolean = false,
   userName?: string
 ): Promise<string> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+  const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || '' });
   const firstName = userName ? userName.split(' ')[0] : 'Candidate';
-  const difficultyPrompt = state.difficulty === Difficulty.HARD 
-    ? "Ask complex, multi-layered scenario-based questions that test deep technical and strategic competence." 
-    : state.difficulty === Difficulty.MEDIUM 
-    ? "Ask professional standard competency and experience-based questions." 
-    : "Ask straightforward introductory, interest, and core skills-based questions.";
+  const difficultyPrompt = state.difficulty === Difficulty.HARD
+    ? "Ask complex, multi-layered scenario-based questions that test deep technical and strategic competence."
+    : state.difficulty === Difficulty.MEDIUM
+      ? "Ask professional standard competency and experience-based questions."
+      : "Ask straightforward introductory, interest, and core skills-based questions.";
 
   const regionPrompt = `Incorporate nuances of the ${state.region} market, mentioning relevant local challenges or opportunities where appropriate for ${state.industry}.`;
   
   const jdContext = state.jobDescription ? `JD Context: ${state.jobDescription}` : "JD Context: Standard requirements for this role.";
   const linkedinContext = state.linkedInUrl ? `LinkedIn URL provided: ${state.linkedInUrl}` : "";
 
-  const prompt = isFirst 
+  const prompt = isFirst
     ? `Start the professional interview with ${firstName} for the role of ${state.jobRole} in the ${state.industry} industry, located in ${state.jobLocation}. 
        ${difficultyPrompt} ${regionPrompt}
        ${jdContext}
@@ -128,9 +128,9 @@ export const generateNextQuestion = async (
 
 export const generateDetailedFeedback = async (
   state: InterviewState,
-  history: {role: string, text: string}[]
+  history: { role: string, text: string }[]
 ): Promise<FeedbackData> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+  const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || '' });
   const prompt = `As the HirePrep Performance Analyst, analyze this professional interview transcript and provide a structured review in JSON format.
   
   CONTEXT:
@@ -175,16 +175,16 @@ export const generateDetailedFeedback = async (
           score: { type: Type.NUMBER },
           strengths: { type: Type.ARRAY, items: { type: Type.STRING } },
           weaknesses: { type: Type.ARRAY, items: { type: Type.STRING } },
-          suggestions: { 
-            type: Type.ARRAY, 
-            items: { 
+          suggestions: {
+            type: Type.ARRAY,
+            items: {
               type: Type.OBJECT,
               properties: {
                 text: { type: Type.STRING },
                 rationale: { type: Type.STRING }
               },
               required: ["text", "rationale"]
-            } 
+            }
           },
           marketInsights: { type: Type.STRING },
           technicalAccuracy: { type: Type.NUMBER },
@@ -203,7 +203,7 @@ export const generateDetailedFeedback = async (
     const text = response.text;
     if (!text) throw new Error("Empty response");
     const parsed = JSON.parse(text);
-    return { ...parsed, skillGaps: [] }; 
+    return { ...parsed, skillGaps: [] };
   } catch (e) {
     throw new Error("Failed to parse feedback.");
   }
@@ -211,7 +211,7 @@ export const generateDetailedFeedback = async (
 
 /** AI Assistant Chat System */
 export const createChatSession = () => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+  const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || '' });
   return ai.chats.create({
     model: 'gemini-3-pro-preview',
     config: {
@@ -222,7 +222,7 @@ export const createChatSession = () => {
 
 /** Audio Transcription Service */
 export const transcribeAudio = async (base64Audio: string): Promise<string> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+  const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || '' });
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
     contents: {
@@ -242,7 +242,7 @@ export const transcribeAudio = async (base64Audio: string): Promise<string> => {
 
 /** Text-to-Speech Service */
 export const speakText = async (text: string): Promise<string> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+  const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || '' });
   const response = await ai.models.generateContent({
     model: "gemini-2.5-flash-preview-tts",
     contents: [{ parts: [{ text: text }] }],
@@ -297,8 +297,8 @@ export async function decodeAudioData(
   return buffer;
 }
 
-export const connectLiveSession = (callbacks: any, systemInstruction: string, voiceName: string = 'Zephyr') => {
-  const apiKey = process.env.API_KEY || '';
+export const connectLiveSession = (callbacks: any, systemInstruction: string) => {
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY || '';
   const ai = new GoogleGenAI({ apiKey });
   return ai.live.connect({
     model: 'gemini-2.5-flash-native-audio-preview-12-2025',
@@ -308,7 +308,7 @@ export const connectLiveSession = (callbacks: any, systemInstruction: string, vo
       speechConfig: {
         voiceConfig: { prebuiltVoiceConfig: { voiceName } },
       },
-      inputAudioTranscription: {}, 
+      inputAudioTranscription: {},
       outputAudioTranscription: {},
       systemInstruction,
     },

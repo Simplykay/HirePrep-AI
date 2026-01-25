@@ -1,0 +1,13 @@
+# Google Gemini API Configuration
+# Get your API key from: https://aistudio.google.com/app/apikey
+VITE_GEMINI_API_KEY= AIzaSyChbfiqMXQAg4BoRWfokA3ooQcTGiIEg3A
+
+# Application Configuration
+VITE_APP_NAME=HirePrep AI
+VITE_APP_ENV=development
+
+# Feature Flags
+VITE_ENABLE_ANALYTICS=false
+VITE_ENABLE_LIVE_AUDIO=true
+
+# Optional: Add your own configuration below

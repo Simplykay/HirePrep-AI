@@ -135,120 +135,62 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [passwordStrength, setPasswordStrength] = useState(0);
-
   const googleButtonRef = useRef<HTMLDivElement>(null);
 
-  // Password Strength Logic
+  const GOOGLE_CLIENT_ID = '145958773997-n464ubtsg3hqeqrv2p4q60gfe6a21tt7.apps.googleusercontent.com';
+
+  // Initialize Google Sign-In button
   useEffect(() => {
-    if (isLogin) return;
-    let strength = 0;
-    if (password.length > 7) strength += 1;
-    if (password.match(/[0-9]/)) strength += 1;
-    if (password.match(/[^a-zA-Z0-9]/)) strength += 1;
-    if (password.length > 12) strength += 1;
-    setPasswordStrength(strength);
-  }, [password, isLogin]);
+    const initializeGoogle = () => {
+      if (typeof window !== 'undefined' && (window as any).google && googleButtonRef.current) {
+        try {
+          (window as any).google.accounts.id.initialize({
+            client_id: GOOGLE_CLIENT_ID,
+            callback: handleGoogleCallback,
+          });
 
-  // Google Sign-In Handler
-  const handleGoogleResponse = (response: any) => {
-    try {
-      setLoading(true);
-      // Decode JWT Credential
-      const base64Url = response.credential.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const jsonPayload = decodeURIComponent(atob(base64).split('').map((c) => 
-        '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
-      ).join(''));
-      
-      const payload = JSON.parse(jsonPayload);
-      
-      // Access storage to find or create user
-      const storedUsersRaw = localStorage.getItem('hireprep_registered_users');
-      const users = storedUsersRaw ? JSON.parse(storedUsersRaw) : [];
-      
-      let user = users.find((u: any) => u.email === payload.email);
-
-      if (!user) {
-        // Create new user from Google Profile
-        user = {
-          name: payload.name,
-          email: payload.email,
-          isPremium: false,
-          subscriptionTier: 'Free' as SubscriptionTier,
-          interviewsCompleted: 0,
-          history: [],
-          avatarUrl: payload.picture
-        };
-        users.push(user);
-        localStorage.setItem('hireprep_registered_users', JSON.stringify(users));
-      } else {
-        // Update avatar if returning
-        user.avatarUrl = payload.picture;
-        // Update user in list
-        const otherUsers = users.filter((u: any) => u.email !== payload.email);
-        localStorage.setItem('hireprep_registered_users', JSON.stringify([...otherUsers, user]));
-      }
-
-      // UX Delay
-      setTimeout(() => {
-        onLogin(user);
-        setLoading(false);
-      }, 1000);
-
-    } catch (e) {
-      console.error("Google Sign-In Error:", e);
-      setError("Failed to verify Google credentials.");
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    // Initialize Google Button
-    if (window.google && window.google.accounts && googleButtonRef.current) {
-      // NOTE: Replace this with your actual Google Client ID from Google Cloud Console.
-      const clientId = "YOUR_GOOGLE_CLIENT_ID_HERE"; 
-      
-      window.google.accounts.id.initialize({
-        client_id: clientId,
-        callback: handleGoogleResponse,
-        auto_select: false
-      });
-
-      window.google.accounts.id.renderButton(
-        googleButtonRef.current,
-        { 
-          theme: "filled_black", 
-          size: "large", 
-          width: 340, // Approximate width of container
-          text: "continue_with",
-          shape: "pill",
-          logo_alignment: "left"
+          // Render the Google Sign-In button
+          (window as any).google.accounts.id.renderButton(
+            googleButtonRef.current,
+            {
+              theme: 'filled_blue',
+              size: 'large',
+              width: googleButtonRef.current.offsetWidth,
+              text: 'continue_with',
+              shape: 'rectangular',
+            }
+          );
+        } catch (err) {
+          console.error('Google initialization error:', err);
         }
-      );
-    }
-  }, [isLogin]);
+      } else {
+        // Retry if Google hasn't loaded yet
+        setTimeout(initializeGoogle, 300);
+      }
+    };
 
-  const validateForm = () => {
-    // Basic email regex
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      setError('Please enter a valid email address.');
-      return false;
+    // Small delay to ensure the ref is attached
+    setTimeout(initializeGoogle, 100);
+  }, []);
+
+  const handleGoogleCallback = (response: any) => {
+    try {
+      // Decode the JWT token to get user info
+      const payload = JSON.parse(atob(response.credential.split('.')[1]));
+
+      onLogin({
+        name: payload.name || 'Google User',
+        email: payload.email,
+        isPremium: false,
+        subscriptionTier: 'Free',
+        interviewsCompleted: 0,
+        history: [],
+        avatarUrl: payload.picture || `https://ui-avatars.com/api/?name=${encodeURIComponent(payload.name)}&background=random&color=fff`
+      });
+    } catch (err) {
+      console.error('Google login error:', err);
+      setError('Failed to process Google login. Please try again.');
     }
-    
-    if (!isLogin) {
-      if (password.length < 8) {
-        setError('Password must be at least 8 characters long.');
-        return false;
-      }
-      if (!name.trim()) {
-        setError('Full name is required.');
-        return false;
-      }
-    }
-    return true;
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -262,11 +204,10 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
     const storedUsersRaw = localStorage.getItem('hireprep_registered_users');
     const users = storedUsersRaw ? JSON.parse(storedUsersRaw) : [];
 
-    // Simulate Network Latency for realism
-    setTimeout(() => {
-      if (isLogin) {
-        // Admin Backdoor
-        if (email === 'admin@gmail.com' && password === 'adminpass') {
+    if (isLogin) {
+      // Check for demo admin account
+      if (email === 'admin@gmail.com' && password === 'adminpass') {
+        setTimeout(() => {
           onLogin({
             name: 'Admin User',
             email: 'admin@gmail.com',
@@ -277,8 +218,9 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
             avatarUrl: 'https://ui-avatars.com/api/?name=Admin+User&background=10b981&color=fff'
           });
           setLoading(false);
-          return;
-        }
+        }, 800);
+        return;
+      }
 
         const user = users.find((u: any) => u.email === email && u.password === password);
         if (user) {
@@ -286,124 +228,94 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
             ...user,
             avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&color=fff`
           });
-        } else {
-          setError('Invalid credentials. Access denied.');
-        }
+          setLoading(false);
+        }, 800);
       } else {
-        if (users.some((u: any) => u.email === email)) {
-          setError('This email is already associated with an account.');
-        } else {
-          const newUser = {
-            name,
-            email,
-            password, // In a real app, this would be hashed!
-            isPremium: false,
-            subscriptionTier: 'Free' as SubscriptionTier,
-            interviewsCompleted: 0,
-            history: []
-          };
-          users.push(newUser);
-          localStorage.setItem('hireprep_registered_users', JSON.stringify(users));
-          
-          onLogin({
-            ...newUser,
-            avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&color=fff`
-          });
-        }
+        setTimeout(() => {
+          setError('Invalid email or password. Please try again.');
+          setLoading(false);
+        }, 800);
       }
-      setLoading(false);
-    }, 1500);
+    } else {
+      if (users.some((u: any) => u.email === email)) {
+        setError('Email already registered. Please sign in.');
+        setLoading(false);
+        return;
+      }
+
+      const newUser = {
+        name,
+        email,
+        password,
+        isPremium: false,
+        subscriptionTier: 'Free' as SubscriptionTier,
+        interviewsCompleted: 0,
+        history: []
+      };
+
+      users.push(newUser);
+      localStorage.setItem('hireprep_registered_users', JSON.stringify(users));
+
+      setTimeout(() => {
+        onLogin({
+          ...newUser,
+          avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&color=fff`
+        });
+        setLoading(false);
+      }, 800);
+    }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-950 relative overflow-hidden font-sans">
-      <NeuralBackground />
-      
-      {/* Overlay Gradient */}
-      <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent z-0 pointer-events-none"></div>
+    <div className="min-h-screen flex bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 overflow-hidden relative">
+      {/* Animated Background */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl -top-20 -left-20 animate-pulse"></div>
+        <div className="absolute w-96 h-96 bg-blue-500/10 rounded-full blur-3xl -bottom-20 -right-20 animate-pulse delay-1000"></div>
+        <div className="absolute inset-0 pattern-overlay opacity-5"></div>
+      </div>
 
-      <div className="relative z-10 w-full max-w-5xl flex flex-col lg:flex-row shadow-[0_0_100px_rgba(16,185,129,0.1)] rounded-[3rem] overflow-hidden m-4 animate-in fade-in zoom-in-95 duration-700">
-        
-        {/* Brand Side */}
-        <div className="hidden lg:flex lg:w-5/12 bg-slate-900/80 backdrop-blur-xl p-12 flex-col justify-between border-r border-slate-800/50">
-           <div>
-             <Logo className="h-10 mb-12" variant="light" />
-             <h1 className="text-4xl font-black text-white leading-tight tracking-tight mb-6">
-               Secure Access to <br/>
-               <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-blue-500">Global Career AI</span>
-             </h1>
-             <p className="text-slate-400 text-sm leading-relaxed">
-               Join elite professionals utilizing neural voice analysis to dominate international interviews.
-             </p>
-           </div>
-           
-           <div className="space-y-6">
-              <div className="flex items-center space-x-3 text-xs text-slate-500 font-bold uppercase tracking-widest">
-                 <i className="fas fa-shield-alt text-emerald-500"></i>
-                 <span>256-Bit SSL Encrypted</span>
-              </div>
-              <div className="flex -space-x-4">
-                  {[1,2,3,4,5].map(i => (
-                    <img key={i} src={`https://i.pravatar.cc/100?img=${i+10}`} alt="User" className="w-10 h-10 rounded-full border-2 border-slate-900" />
-                  ))}
-                  <div className="w-10 h-10 rounded-full border-2 border-slate-900 bg-emerald-600 flex items-center justify-center text-[10px] font-bold text-white">
-                    +50k
-                  </div>
-              </div>
-           </div>
-        </div>
-
-        {/* Auth Form Side */}
-        <div className="w-full lg:w-7/12 bg-slate-950/80 backdrop-blur-2xl p-8 md:p-12 relative">
-          {/* Mobile Logo */}
-          <div className="lg:hidden flex justify-center mb-8">
-            <Logo className="h-10" variant="light" />
+      {/* Main Content */}
+      <div className="relative z-10 w-full flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          {/* Logo */}
+          <div className="text-center mb-8 animate-fade-in">
+            <Logo className="h-12 mx-auto mb-4" variant="light" />
+            <h1 className="text-4xl font-black text-white mb-2 tracking-tight">
+              Welcome {isLogin ? 'Back' : 'to HirePrep'}
+            </h1>
+            <p className="text-slate-400 text-sm">
+              {isLogin ? 'Sign in to continue your journey' : 'Start your path to career success'}
+            </p>
           </div>
 
-          <div className="max-w-sm mx-auto space-y-8">
-            <div className="text-center">
-              <h2 className="text-2xl font-black text-white">{isLogin ? 'Welcome Back' : 'Create Secure ID'}</h2>
-              <p className="text-slate-500 text-xs mt-2 font-medium">
-                {isLogin ? 'Authenticate to access your dashboard.' : 'Initialize your professional profile.'}
-              </p>
-            </div>
-
+          {/* Auth Card */}
+          <div className="glass border border-slate-800/50 rounded-3xl p-8 shadow-2xl animate-slide-up">
             {error && (
-              <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-center space-x-3 animate-pulse">
-                <i className="fas fa-lock text-red-500 text-xs"></i>
-                <span className="text-red-400 text-xs font-bold">{error}</span>
+              <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-start space-x-3 animate-fade-in">
+                <i className="fas fa-exclamation-circle text-red-400 mt-0.5"></i>
+                <p className="text-red-400 text-sm flex-1">{error}</p>
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-5">
-              {!isLogin && (
-                <div className="space-y-1.5">
-                  <label className="text-[10px] uppercase font-black text-slate-500 tracking-widest ml-2">Legal Name</label>
-                  <div className="relative group">
-                    <i className="fas fa-user absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-emerald-500 transition-colors"></i>
-                    <input
-                      type="text"
-                      className="w-full bg-slate-900/50 border border-slate-800 rounded-xl py-3.5 pl-10 pr-4 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
-                      placeholder="e.g. John Doe"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                    />
-                  </div>
-                </div>
-              )}
+            {/* Google Sign-In Button Container */}
+            <div className="mb-6">
+              <div
+                ref={googleButtonRef}
+                className="w-full flex justify-center"
+                style={{ minHeight: '44px' }}
+              ></div>
+            </div>
 
-              <div className="space-y-1.5">
-                <label className="text-[10px] uppercase font-black text-slate-500 tracking-widest ml-2">Work Email</label>
-                <div className="relative group">
-                  <i className="fas fa-envelope absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-emerald-500 transition-colors"></i>
-                  <input
-                    type="email"
-                    className="w-full bg-slate-900/50 border border-slate-800 rounded-xl py-3.5 pl-10 pr-4 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
-                    placeholder="name@company.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                </div>
+            {/* Divider */}
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-slate-700"></div>
+              </div>
+              <div className="relative flex justify-center text-xs">
+                <span className="bg-slate-900 px-4 text-slate-500 font-bold uppercase tracking-widest">
+                  Or continue with email
+                </span>
               </div>
 
               <div className="space-y-1.5">
@@ -459,19 +371,88 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
               <div className="relative flex justify-center text-[10px] uppercase"><span className="bg-slate-900 px-2 text-slate-600 font-bold">Or authenticate via</span></div>
             </div>
 
-            <div className="w-full flex justify-center h-[50px]">
-              <div ref={googleButtonRef}></div>
-            </div>
+            {/* Email/Password Form */}
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {!isLogin && (
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">
+                    Full Name
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    className="w-full bg-slate-800/50 border border-slate-700 rounded-xl px-4 py-3.5 text-sm text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all placeholder:text-slate-600"
+                    placeholder="John Doe"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                  />
+                </div>
+              )}
 
-            <p className="text-center text-xs text-slate-500 mt-6">
-              {isLogin ? "New user?" : "Already verified?"}{' '}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">
+                  Email Address
+                </label>
+                <input
+                  type="email"
+                  required
+                  className="w-full bg-slate-800/50 border border-slate-700 rounded-xl px-4 py-3.5 text-sm text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all placeholder:text-slate-600"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">
+                  Password
+                </label>
+                <input
+                  type="password"
+                  required
+                  className="w-full bg-slate-800/50 border border-slate-700 rounded-xl px-4 py-3.5 text-sm text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all placeholder:text-slate-600"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
+
               <button
-                onClick={() => { setIsLogin(!isLogin); setError(''); }}
-                className="text-emerald-500 font-bold hover:text-emerald-400 transition-colors ml-1"
+                type="submit"
+                disabled={loading}
+                className="w-full py-4 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white rounded-xl font-bold uppercase tracking-wider text-sm transition-all shadow-lg shadow-emerald-900/30 hover:shadow-xl hover:shadow-emerald-900/40 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isLogin ? 'Register secure ID' : 'Login'}
+                {loading ? (
+                  <span className="flex items-center justify-center space-x-2">
+                    <i className="fas fa-spinner fa-spin"></i>
+                    <span>Processing...</span>
+                  </span>
+                ) : (
+                  isLogin ? 'Sign In' : 'Create Account'
+                )}
               </button>
-            </p>
+            </form>
+
+            {/* Toggle Sign In/Sign Up */}
+            <div className="mt-6 text-center">
+              <button
+                onClick={() => {
+                  setIsLogin(!isLogin);
+                  setError('');
+                }}
+                className="text-sm text-slate-400 hover:text-emerald-400 transition-colors font-medium"
+              >
+                {isLogin ? "Don't have an account? " : 'Already have an account? '}
+                <span className="text-emerald-400 font-bold underline">
+                  {isLogin ? 'Sign up' : 'Sign in'}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="mt-8 text-center text-xs text-slate-500">
+            <p>© 2026 HirePrep AI. Empowering African Talent Globally.</p>
           </div>
         </div>
       </div>
