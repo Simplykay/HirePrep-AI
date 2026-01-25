@@ -7,127 +7,6 @@ interface AuthProps {
   onLogin: (user: UserProfile) => void;
 }
 
-declare global {
-  interface Window {
-    google: any;
-  }
-}
-
-// Neural Network Background Animation Component
-const NeuralBackground = () => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    let w = canvas.width = window.innerWidth;
-    let h = canvas.height = window.innerHeight;
-    const particles: Particle[] = [];
-    const properties = {
-      bgColor: 'rgba(2, 6, 23, 1)',
-      particleColor: 'rgba(16, 185, 129, 0.5)',
-      particleRadius: 3,
-      particleCount: 60,
-      lineLength: 150,
-      particleLife: 6,
-    };
-
-    class Particle {
-      x: number;
-      y: number;
-      velocityX: number;
-      velocityY: number;
-
-      constructor() {
-        this.x = Math.random() * w;
-        this.y = Math.random() * h;
-        this.velocityX = (Math.random() - 0.5) * 0.5;
-        this.velocityY = (Math.random() - 0.5) * 0.5;
-      }
-
-      position() {
-        this.x + this.velocityX > w && this.velocityX > 0 || this.x + this.velocityX < 0 && this.velocityX < 0 ? this.velocityX *= -1 : this.velocityX;
-        this.y + this.velocityY > h && this.velocityY > 0 || this.y + this.velocityY < 0 && this.velocityY < 0 ? this.velocityY *= -1 : this.velocityY;
-        this.x += this.velocityX;
-        this.y += this.velocityY;
-      }
-
-      reDraw() {
-        if (!ctx) return;
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, properties.particleRadius, 0, Math.PI * 2);
-        ctx.closePath();
-        ctx.fillStyle = properties.particleColor;
-        ctx.fill();
-      }
-    }
-
-    const reDrawBackground = () => {
-      ctx.fillStyle = properties.bgColor;
-      ctx.fillRect(0, 0, w, h);
-    };
-
-    const drawLines = () => {
-      let x1, y1, x2, y2, length, opacity;
-      for (let i = 0; i < particles.length; i++) {
-        for (let j = 0; j < particles.length; j++) {
-          x1 = particles[i].x;
-          y1 = particles[i].y;
-          x2 = particles[j].x;
-          y2 = particles[j].y;
-          length = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
-          if (length < properties.lineLength) {
-            opacity = 1 - length / properties.lineLength;
-            ctx.lineWidth = 0.5;
-            ctx.strokeStyle = `rgba(16, 185, 129, ${opacity})`;
-            ctx.beginPath();
-            ctx.moveTo(x1, y1);
-            ctx.lineTo(x2, y2);
-            ctx.closePath();
-            ctx.stroke();
-          }
-        }
-      }
-    };
-
-    const reDrawParticles = () => {
-      for (let i = 0; i < particles.length; i++) {
-        particles[i].position();
-        particles[i].reDraw();
-      }
-    };
-
-    const loop = () => {
-      reDrawBackground();
-      reDrawParticles();
-      drawLines();
-      requestAnimationFrame(loop);
-    };
-
-    const init = () => {
-      for (let i = 0; i < properties.particleCount; i++) {
-        particles.push(new Particle());
-      }
-      loop();
-    };
-
-    init();
-
-    const handleResize = () => {
-      w = canvas.width = window.innerWidth;
-      h = canvas.height = window.innerHeight;
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  return <canvas ref={canvasRef} className="absolute inset-0 z-0 opacity-60" />;
-};
-
 const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
@@ -195,11 +74,8 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-
-    if (!validateForm()) return;
-
     setLoading(true);
+    setError('');
 
     const storedUsersRaw = localStorage.getItem('hireprep_registered_users');
     const users = storedUsersRaw ? JSON.parse(storedUsersRaw) : [];
@@ -222,8 +98,9 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
         return;
       }
 
-        const user = users.find((u: any) => u.email === email && u.password === password);
-        if (user) {
+      const user = users.find((u: any) => u.email === email && u.password === password);
+      if (user) {
+        setTimeout(() => {
           onLogin({
             ...user,
             avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&color=fff`
@@ -317,58 +194,6 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                   Or continue with email
                 </span>
               </div>
-
-              <div className="space-y-1.5">
-                <label className="text-[10px] uppercase font-black text-slate-500 tracking-widest ml-2">Password</label>
-                <div className="relative group">
-                  <i className="fas fa-key absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-emerald-500 transition-colors"></i>
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    className="w-full bg-slate-900/50 border border-slate-800 rounded-xl py-3.5 pl-10 pr-12 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
-                  <button 
-                    type="button" 
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white focus:outline-none"
-                  >
-                    <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
-                  </button>
-                </div>
-                
-                {!isLogin && password.length > 0 && (
-                  <div className="flex items-center space-x-2 px-1 pt-1">
-                    <div className="flex-1 h-1 bg-slate-800 rounded-full overflow-hidden">
-                      <div 
-                        className={`h-full transition-all duration-500 ${
-                          passwordStrength <= 2 ? 'bg-red-500' : 
-                          passwordStrength === 3 ? 'bg-amber-500' : 'bg-emerald-500'
-                        }`} 
-                        style={{width: `${(passwordStrength / 4) * 100}%`}}
-                      ></div>
-                    </div>
-                    <span className="text-[9px] font-bold text-slate-500 uppercase">
-                      {passwordStrength <= 2 ? 'Weak' : passwordStrength === 3 ? 'Medium' : 'Strong'}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black uppercase tracking-widest text-[10px] transition-all shadow-lg shadow-emerald-900/40 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
-              >
-                {loading ? <i className="fas fa-circle-notch fa-spin text-sm"></i> : <i className={`fas ${isLogin ? 'fa-sign-in-alt' : 'fa-user-plus'}`}></i>}
-                <span>{loading ? 'Authenticating...' : isLogin ? 'Access Dashboard' : 'Initialize Account'}</span>
-              </button>
-            </form>
-
-            <div className="relative my-6">
-              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-800"></div></div>
-              <div className="relative flex justify-center text-[10px] uppercase"><span className="bg-slate-900 px-2 text-slate-600 font-bold">Or authenticate via</span></div>
             </div>
 
             {/* Email/Password Form */}
