@@ -1,9 +1,16 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, SubscriptionTier } from '../types';
 import Logo from './Logo';
 
 interface AuthProps {
   onLogin: (user: UserProfile) => void;
+}
+
+declare global {
+  interface Window {
+    google: any;
+  }
 }
 
 // Neural Network Background Animation Component
@@ -131,6 +138,8 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [passwordStrength, setPasswordStrength] = useState(0);
 
+  const googleButtonRef = useRef<HTMLDivElement>(null);
+
   // Password Strength Logic
   useEffect(() => {
     if (isLogin) return;
@@ -142,22 +151,84 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
     setPasswordStrength(strength);
   }, [password, isLogin]);
 
-  const simulateGoogleLogin = () => {
-    setLoading(true);
-    // Simulate OAuth secure handshake
-    setTimeout(() => {
-      onLogin({
-        name: 'Google User',
-        email: 'user@google.com',
-        isPremium: false,
-        subscriptionTier: 'Free',
-        interviewsCompleted: 0,
-        history: [],
-        avatarUrl: 'https://ui-avatars.com/api/?name=Google+User&background=random&color=fff'
-      });
+  // Google Sign-In Handler
+  const handleGoogleResponse = (response: any) => {
+    try {
+      setLoading(true);
+      // Decode JWT Credential
+      const base64Url = response.credential.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(atob(base64).split('').map((c) => 
+        '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
+      ).join(''));
+      
+      const payload = JSON.parse(jsonPayload);
+      
+      // Access storage to find or create user
+      const storedUsersRaw = localStorage.getItem('hireprep_registered_users');
+      const users = storedUsersRaw ? JSON.parse(storedUsersRaw) : [];
+      
+      let user = users.find((u: any) => u.email === payload.email);
+
+      if (!user) {
+        // Create new user from Google Profile
+        user = {
+          name: payload.name,
+          email: payload.email,
+          isPremium: false,
+          subscriptionTier: 'Free' as SubscriptionTier,
+          interviewsCompleted: 0,
+          history: [],
+          avatarUrl: payload.picture
+        };
+        users.push(user);
+        localStorage.setItem('hireprep_registered_users', JSON.stringify(users));
+      } else {
+        // Update avatar if returning
+        user.avatarUrl = payload.picture;
+        // Update user in list
+        const otherUsers = users.filter((u: any) => u.email !== payload.email);
+        localStorage.setItem('hireprep_registered_users', JSON.stringify([...otherUsers, user]));
+      }
+
+      // UX Delay
+      setTimeout(() => {
+        onLogin(user);
+        setLoading(false);
+      }, 1000);
+
+    } catch (e) {
+      console.error("Google Sign-In Error:", e);
+      setError("Failed to verify Google credentials.");
       setLoading(false);
-    }, 2000);
+    }
   };
+
+  useEffect(() => {
+    // Initialize Google Button
+    if (window.google && window.google.accounts && googleButtonRef.current) {
+      // NOTE: Replace this with your actual Google Client ID from Google Cloud Console.
+      const clientId = "YOUR_GOOGLE_CLIENT_ID_HERE"; 
+      
+      window.google.accounts.id.initialize({
+        client_id: clientId,
+        callback: handleGoogleResponse,
+        auto_select: false
+      });
+
+      window.google.accounts.id.renderButton(
+        googleButtonRef.current,
+        { 
+          theme: "filled_black", 
+          size: "large", 
+          width: 340, // Approximate width of container
+          text: "continue_with",
+          shape: "pill",
+          logo_alignment: "left"
+        }
+      );
+    }
+  }, [isLogin]);
 
   const validateForm = () => {
     // Basic email regex
@@ -194,7 +265,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
     // Simulate Network Latency for realism
     setTimeout(() => {
       if (isLogin) {
-        // Admin Backdoor (Hidden from UI, kept for functionality)
+        // Admin Backdoor
         if (email === 'admin@gmail.com' && password === 'adminpass') {
           onLogin({
             name: 'Admin User',
@@ -388,16 +459,11 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
               <div className="relative flex justify-center text-[10px] uppercase"><span className="bg-slate-900 px-2 text-slate-600 font-bold">Or authenticate via</span></div>
             </div>
 
-            <button
-              onClick={simulateGoogleLogin}
-              disabled={loading}
-              className="w-full py-3.5 bg-white text-slate-900 rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-slate-100 transition-all flex items-center justify-center space-x-3 shadow-lg active:scale-95 disabled:opacity-70"
-            >
-              <i className="fab fa-google text-sm"></i>
-              <span>Google SSO</span>
-            </button>
+            <div className="w-full flex justify-center h-[50px]">
+              <div ref={googleButtonRef}></div>
+            </div>
 
-            <p className="text-center text-xs text-slate-500">
+            <p className="text-center text-xs text-slate-500 mt-6">
               {isLogin ? "New user?" : "Already verified?"}{' '}
               <button
                 onClick={() => { setIsLogin(!isLogin); setError(''); }}
